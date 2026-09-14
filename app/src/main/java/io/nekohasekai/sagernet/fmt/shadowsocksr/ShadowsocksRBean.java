@@ -58,6 +58,12 @@ public class ShadowsocksRBean extends AbstractBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("shadowsocksr");
+    }
+
+    @NotNull
+    @Override
     public ShadowsocksRBean clone() {
         return KryoConverters.deserialize(new ShadowsocksRBean(), KryoConverters.serialize(this));
     }
@@ -75,4 +81,3 @@ public class ShadowsocksRBean extends AbstractBean {
         }
     };
 }
-

@@ -55,6 +55,12 @@
             app:key="serverCertificates"
             app:title="@string/ssh_public_key"
             app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:icon="@drawable/ic_baseline_download_24"
+            app:key="fetchSSHHostKey"
+            app:summary="@string/ssh_fetch_host_key_summary"
+            app:title="@string/ssh_fetch_host_key" />
     </PreferenceCategory>
 
 

@@ -27,45 +27,142 @@ import org.jetbrains.annotations.NotNull;
 
 import io.nekohasekai.sagernet.fmt.AbstractBean;
 import io.nekohasekai.sagernet.fmt.KryoConverters;
+import moe.matsuri.nb4a.utils.KotlinUtilKt;
+import moe.matsuri.nb4a.utils.NGUtil;
 
 public class MieruBean extends AbstractBean {
 
-    public String protocol;
+    public static final int PROTOCOL_TCP = 0;
+    public static final int PROTOCOL_UDP = 1;
+
+    public static final int MULTIPLEXING_DEFAULT = 0;
+    public static final int MULTIPLEXING_OFF = 1;
+    public static final int MULTIPLEXING_LOW = 2;
+    public static final int MULTIPLEXING_MIDDLE = 3;
+    public static final int MULTIPLEXING_HIGH = 4;
+
+    public static final int HANDSHAKE_DEFAULT = 2;
+    public static final int HANDSHAKE_STANDARD = 0;
+    public static final int HANDSHAKE_NO_WAIT = 1;
+
+    public Integer protocol;
     public String username;
     public String password;
     public Integer mtu;
+    public Integer multiplexingLevel;
+    public Integer handshakeMode;
+    public String portRange;
+    public String trafficPattern;
+    public String lowEntropyMode;
+    public String lowEntropyMaskRotation;
 
     @Override
     public void initializeDefaultValues() {
         super.initializeDefaultValues();
-        if (protocol == null) protocol = "TCP";
+        if (protocol == null) protocol = PROTOCOL_TCP;
         if (username == null) username = "";
         if (password == null) password = "";
         if (mtu == null) mtu = 1400;
+        if (multiplexingLevel == null) multiplexingLevel = MULTIPLEXING_DEFAULT;
+        if (handshakeMode == null) handshakeMode = HANDSHAKE_DEFAULT;
+        if (portRange == null) portRange = "";
+        if (trafficPattern == null) trafficPattern = "";
+        if (lowEntropyMode == null) lowEntropyMode = "";
+        if (lowEntropyMaskRotation == null) lowEntropyMaskRotation = "";
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(0);
+        initializeDefaultValues();
+        output.writeInt(5);
         super.serialize(output);
-        output.writeString(protocol);
+        output.writeInt(protocol);
         output.writeString(username);
         output.writeString(password);
-        if (protocol.equals("UDP")) {
+        if (protocol == PROTOCOL_UDP) {
             output.writeInt(mtu);
         }
+        output.writeInt(multiplexingLevel);
+        output.writeInt(handshakeMode);
+        output.writeString(portRange);
+        output.writeString(trafficPattern);
+        output.writeString(lowEntropyMode);
+        output.writeString(lowEntropyMaskRotation);
     }
 
     @Override
     public void deserialize(ByteBufferInput input) {
         int version = input.readInt();
         super.deserialize(input);
-        protocol = input.readString();
+        if (version == 0) {
+            String oldProtocol = input.readString();
+            username = input.readString();
+            password = input.readString();
+            protocol = "UDP".equals(oldProtocol) ? PROTOCOL_UDP : PROTOCOL_TCP;
+            if (protocol == PROTOCOL_UDP) {
+                mtu = input.readInt();
+            }
+            return;
+        }
+        protocol = input.readInt();
         username = input.readString();
         password = input.readString();
-        if (protocol.equals("UDP")) {
+        if (protocol == PROTOCOL_UDP) {
             mtu = input.readInt();
         }
+        if (version >= 1) {
+            multiplexingLevel = input.readInt();
+        }
+        if (version >= 2) {
+            handshakeMode = input.readInt();
+        }
+        if (version >= 3) {
+            portRange = input.readString();
+        }
+        if (version >= 4) {
+            trafficPattern = input.readString();
+        }
+        if (version >= 5) {
+            lowEntropyMode = input.readString();
+            lowEntropyMaskRotation = input.readString();
+        }
+    }
+
+    public void applyFeatureSettings(AbstractBean other) {
+        if (!(other instanceof MieruBean)) return;
+        MieruBean bean = (MieruBean) other;
+        bean.multiplexingLevel = multiplexingLevel;
+        bean.handshakeMode = handshakeMode;
+        bean.mtu = mtu;
+        bean.trafficPattern = trafficPattern;
+        bean.lowEntropyMode = lowEntropyMode;
+        bean.lowEntropyMaskRotation = lowEntropyMaskRotation;
+    }
+
+    @Override
+    public String displayAddress() {
+        if (portRange == null || portRange.isEmpty()) {
+            return super.displayAddress();
+        }
+        if (NGUtil.INSTANCE.isIpv6Address(serverAddress)) {
+            return "[" + serverAddress + "]:" + String.join(",", KotlinUtilKt.listByLineOrComma(portRange));
+        } else {
+            return serverAddress + ":" + String.join(",", KotlinUtilKt.listByLineOrComma(portRange));
+        }
+    }
+
+    @Override
+    public String network() {
+        if (protocol != null && protocol == PROTOCOL_UDP) {
+            return "udp";
+        }
+        return "tcp";
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("mieru");
     }
 
     @NotNull

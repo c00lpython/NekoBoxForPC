@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 
 import io.nekohasekai.sagernet.fmt.AbstractBean;
 import io.nekohasekai.sagernet.fmt.KryoConverters;
+import io.nekohasekai.sagernet.ktx.JsonHashNormalizer;
 
 public class TuicBean extends AbstractBean {
 
@@ -99,8 +100,20 @@ public class TuicBean extends AbstractBean {
     }
 
     @Override
+    protected void normalizeJsonFieldsForHash() {
+        super.normalizeJsonFieldsForHash();
+        customJSON = JsonHashNormalizer.normalizeJsonStringOrRaw(customJSON);
+    }
+
+    @Override
     public boolean canTCPing() {
         return false;
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("tuic");
     }
 
     @NotNull

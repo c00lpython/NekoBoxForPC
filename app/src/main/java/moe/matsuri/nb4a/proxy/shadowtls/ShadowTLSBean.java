@@ -14,6 +14,7 @@ public class ShadowTLSBean extends StandardV2RayBean {
 
     public Integer version;
     public String password;
+    public Integer proxyProtocol;
 
     @Override
     public void initializeDefaultValues() {
@@ -22,14 +23,16 @@ public class ShadowTLSBean extends StandardV2RayBean {
         security = "tls";
         if (version == null) version = 3;
         if (password == null) password = "";
+        if (proxyProtocol == null) proxyProtocol = 0;
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(0);
+        output.writeInt(1);
         super.serialize(output);
         output.writeInt(version);
         output.writeString(password);
+        output.writeInt(proxyProtocol);
     }
 
     @Override
@@ -38,6 +41,13 @@ public class ShadowTLSBean extends StandardV2RayBean {
         super.deserialize(input);
         version = input.readInt();
         password = input.readString();
+        if (version_ >= 1) proxyProtocol = input.readInt();
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("shadowtls");
     }
 
     @NotNull

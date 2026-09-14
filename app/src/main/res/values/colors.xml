@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
 
+    <color name="splash_background">#F5F7F9</color>
+    <color name="app_icon_red_background">#BC0000</color>
+
     <integer-array name="material_colors">
         <item>@color/material_red_500</item>
         <item>@color/color_pink_ssr</item>
@@ -25,8 +28,23 @@
         <item>@color/material_grey_500</item>
         <item>@color/material_blue_grey_500</item>
         <item>@color/material_light_black</item>
-        <item>@color/color_verdant_mint</item>
+        <item>@color/color_amoled_black</item>
     </integer-array>
+
+    <color name="custom_theme_primary">#F06292</color>
+    <color name="custom_theme_on_primary">#FFFFFF</color>
+    <color name="custom_theme_primary_container">#FFD8E6</color>
+    <color name="custom_theme_on_primary_container">#32101D</color>
+    <color name="custom_theme_secondary">#765864</color>
+    <color name="custom_theme_on_secondary">#FFFFFF</color>
+    <color name="custom_theme_secondary_container">#FFD8E6</color>
+    <color name="custom_theme_on_secondary_container">#2C151F</color>
+    <color name="custom_theme_surface">#FFFBFF</color>
+    <color name="custom_theme_on_surface">#1D1B20</color>
+    <color name="custom_theme_surface_variant">#EEE0E7</color>
+    <color name="custom_theme_on_surface_variant">#4D444B</color>
+    <color name="custom_theme_surface_container">#F3EDF1</color>
+    <color name="custom_theme_surface_container_high">#ECE6EA</color>
 
     <color name="material_amber_100">#FFECB3</color>
     <color name="material_amber_200">#FFE082</color>
@@ -285,48 +303,27 @@
     <color name="fab_color_progress">@color/material_light_black</color>
 
     <color name="color_pink_ssr">#fb7299</color>
-    <color name="color_verdant_mint">#00B96B</color>
-    <color name="color_verdant_mint_dark">#00875E</color>
-    <color name="color_verdant_mint_accent">#00D685</color>
-    <color name="color_verdant_mint_100">#B4D7C6</color>
-    <color name="color_verdant_mint_300">#509177</color>
 
     <color name="color_ng_black_accent">#9E9E9E</color>
     <color name="color_ng_black_primary">#2B2B2B</color>
 
-    <!-- 路由规则类型颜色（日间）-->
-    <color name="color_route_block">#E53935</color>   <!-- 屏蔽：红色 -->
-    <color name="color_route_direct">#43A047</color>  <!-- 直连：绿色 -->
-    <color name="color_route_proxy">#1E88E5</color>   <!-- 代理：蓝色 -->
-    <color name="color_route_config">#8E24AA</color>  <!-- 配置：紫色 -->
+    <color name="color_amoled_black">#000000</color>
+    <color name="color_amoled_accent">#99c1f1</color>
+    <color name="color_amoled_surface">#000000</color>
 
     <color name="preference_simple_menu_background">#FAFAFA</color>
 
-    <!-- 卡片默认细边框：约 12% 黑（低对比分隔线），夜间见 values-night/colors.xml -->
-    <color name="card_stroke">#29000000</color>
+    <color name="theme_surface">#FFF8F8</color>
+    <color name="theme_on_surface">#21191C</color>
+    <color name="theme_surface_variant">#F2DDE4</color>
+    <color name="theme_on_surface_variant">#504349</color>
+    <color name="theme_surface_container">#F8ECEF</color>
+    <color name="theme_surface_container_high">#F2E6EA</color>
 
-    <!-- 立体卡片色调提升表面色（浅色，白底 + 各 primary 8% 染色），夜间见 values-night/colors.xml -->
-    <color name="card_elevated_pink">#FDEDF3</color>
-    <color name="card_elevated_pink_ssr">#FFF4F7</color>
-    <color name="card_elevated_amber">#FFFAEB</color>
-    <color name="card_elevated_blue">#EDF7FE</color>
-    <color name="card_elevated_blue_grey">#F2F5F6</color>
-    <color name="card_elevated_brown">#F4F1F0</color>
-    <color name="card_elevated_cyan">#EBFAFC</color>
-    <color name="card_elevated_deep_orange">#FFF2ED</color>
-    <color name="card_elevated_deep_purple">#F3EFF9</color>
-    <color name="card_elevated_green">#F1F9F1</color>
-    <color name="card_elevated_grey">#F7F7F7</color>
-    <color name="card_elevated_indigo">#F0F1F9</color>
-    <color name="card_elevated_light_blue">#EBF8FE</color>
-    <color name="card_elevated_light_green">#F6FAF1</color>
-    <color name="card_elevated_lime">#FBFCEF</color>
-    <color name="card_elevated_orange">#FFF7EB</color>
-    <color name="card_elevated_purple">#F7EEF9</color>
-    <color name="card_elevated_red">#FEF0EF</color>
-    <color name="card_elevated_teal">#EBF7F5</color>
-    <color name="card_elevated_yellow">#FFFDEF</color>
-    <color name="card_elevated_black">#EEEEEE</color>
-    <color name="card_elevated_verdant_mint">#EBF9F3</color>
+    <!-- Route rule type indicators -->
+    <color name="color_route_block">#E53935</color>
+    <color name="color_route_direct">#43A047</color>
+    <color name="color_route_proxy">#1E88E5</color>
+    <color name="color_route_config">#8E24AA</color>
 
 </resources>

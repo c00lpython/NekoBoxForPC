@@ -162,6 +162,12 @@ public class HysteriaBean extends AbstractBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("hysteria");
+    }
+
+    @NotNull
+    @Override
     public HysteriaBean clone() {
         return KryoConverters.deserialize(new HysteriaBean(), KryoConverters.serialize(this));
     }

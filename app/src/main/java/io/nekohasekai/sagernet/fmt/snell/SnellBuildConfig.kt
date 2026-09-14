@@ -13,7 +13,7 @@ fun buildSingBoxOutboundSnellBean(bean: SnellBean): SingBoxOptions.Outbound_Snel
         }
         version = bean.version
 
-        if (bean.network != null && bean.network.isNotBlank()) {
+        if (!bean.network.isNullOrBlank()) {
             network = bean.network
         }
 
@@ -31,8 +31,8 @@ fun buildSingBoxOutboundSnellBean(bean: SnellBean): SingBoxOptions.Outbound_Snel
             }
         }
 
-        if (bean.reuse != null && bean.reuse) {
-            this.reuse = true
+        if (bean.reuse == true) {
+            reuse = true
         }
     }
 }

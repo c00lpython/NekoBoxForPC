@@ -57,6 +57,12 @@ public class JuicityBean extends AbstractBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("juicity");
+    }
+
+    @NotNull
+    @Override
     public JuicityBean clone() {
         return KryoConverters.deserialize(new JuicityBean(), KryoConverters.serialize(this));
     }

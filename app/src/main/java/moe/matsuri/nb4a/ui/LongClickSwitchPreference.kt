@@ -6,14 +6,13 @@ import android.view.View
 import androidx.core.content.res.TypedArrayUtils
 import androidx.preference.PreferenceViewHolder
 import androidx.preference.R
-import androidx.preference.SwitchPreference
 
 class LongClickSwitchPreference
 @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = TypedArrayUtils.getAttr(
         context, R.attr.switchPreferenceStyle, android.R.attr.switchPreferenceStyle
     ), defStyleRes: Int = 0
-) : SwitchPreference(
+) : MaterialSwitchPreference(
     context, attrs, defStyleAttr, defStyleRes
 ) {
     private var mLongClickListener: View.OnLongClickListener? = null

@@ -18,6 +18,17 @@
             android:title="@string/menu_route" />
 
         <item
+            android:id="@+id/nav_route_apps"
+            android:icon="@drawable/ic_navigation_apps"
+            android:title="@string/apps" />
+
+        <item
+            android:id="@+id/nav_adblock"
+            android:icon="@drawable/ic_baseline_filter_list_24"
+            android:title="@string/adblock"
+        />
+
+        <item
             android:id="@+id/nav_settings"
             android:icon="@drawable/ic_action_settings"
             android:title="@string/settings" />
@@ -43,10 +54,6 @@
     <group
         android:id="@+id/about"
         android:checkableBehavior="single">
-        <item
-            android:id="@+id/nav_faq"
-            android:icon="@drawable/ic_device_data_usage"
-            android:title="@string/document" />
         <item
             android:id="@+id/nav_about"
             android:icon="@drawable/ic_baseline_info_24"

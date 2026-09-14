@@ -38,20 +38,30 @@ class MieruSettingsActivity : ProfileSettingsActivity<MieruBean>() {
         DataStore.profileName = name
         DataStore.serverAddress = serverAddress
         DataStore.serverPort = serverPort
-        DataStore.serverProtocol = protocol
+        DataStore.serverPorts = portRange
+        DataStore.serverProtocolInt = protocol
         DataStore.serverUsername = username
         DataStore.serverPassword = password
-        DataStore.serverMTU = mtu
+        DataStore.serverMieruMuxLevel = multiplexingLevel
+        DataStore.serverMieruHandshakeMode = handshakeMode
+        DataStore.serverMieruTrafficPattern = trafficPattern
+        DataStore.serverMieruLowEntropyMode = lowEntropyMode
+        DataStore.serverMieruLowEntropyMaskRotation = lowEntropyMaskRotation
     }
 
     override fun MieruBean.serialize() {
         name = DataStore.profileName
         serverAddress = DataStore.serverAddress
         serverPort = DataStore.serverPort
-        protocol = DataStore.serverProtocol
+        portRange = DataStore.serverPorts
+        protocol = DataStore.serverProtocolInt
         username = DataStore.serverUsername
         password = DataStore.serverPassword
-        mtu = DataStore.serverMTU
+        multiplexingLevel = DataStore.serverMieruMuxLevel
+        handshakeMode = DataStore.serverMieruHandshakeMode
+        trafficPattern = DataStore.serverMieruTrafficPattern
+        lowEntropyMode = DataStore.serverMieruLowEntropyMode
+        lowEntropyMaskRotation = DataStore.serverMieruLowEntropyMaskRotation
     }
 
     override fun PreferenceFragmentCompat.createPreferences(
@@ -59,18 +69,18 @@ class MieruSettingsActivity : ProfileSettingsActivity<MieruBean>() {
         rootKey: String?,
     ) {
         addPreferencesFromResource(R.xml.mieru_preferences)
-        findPreference<EditTextPreference>(Key.SERVER_PORT)!!.apply {
+        val serverPort = findPreference<EditTextPreference>(Key.SERVER_PORT)!!.apply {
             setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
+        }
+        val serverPortRange = findPreference<EditTextPreference>(Key.SERVER_PORTS)!!
+        serverPort.isEnabled = serverPortRange.text.isNullOrEmpty()
+        serverPortRange.setOnPreferenceChangeListener { _, newValue ->
+            newValue as String
+            serverPort.isEnabled = newValue.isEmpty()
+            true
         }
         findPreference<EditTextPreference>(Key.SERVER_PASSWORD)!!.apply {
             summaryProvider = PasswordSummaryProvider
-        }
-        val protocol = findPreference<SimpleMenuPreference>(Key.SERVER_PROTOCOL)!!
-        val mtu = findPreference<EditTextPreference>(Key.SERVER_MTU)!!
-        mtu.isVisible = protocol.value.equals("UDP")
-        protocol.setOnPreferenceChangeListener { _, newValue ->
-            mtu.isVisible = newValue.equals("UDP")
-            true
         }
     }
 

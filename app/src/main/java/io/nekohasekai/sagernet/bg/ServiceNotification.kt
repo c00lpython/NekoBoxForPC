@@ -1,11 +1,13 @@
 package io.nekohasekai.sagernet.bg
 
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
 import android.os.Build
 import android.text.format.Formatter
@@ -17,13 +19,17 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.aidl.SpeedDisplayData
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.getColorAttr
+import io.nekohasekai.sagernet.ktx.preferSmallIcon
 import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
 import io.nekohasekai.sagernet.ui.SwitchActivity
+import io.nekohasekai.sagernet.utils.ProfileCountryResolver
 import io.nekohasekai.sagernet.utils.Theme
+import io.nekohasekai.sagernet.widget.CountryFlagRenderer
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -39,17 +45,31 @@ import kotlinx.coroutines.sync.withLock
  */
 class ServiceNotification(
     private val service: BaseService.Interface, title: String,
-    channel: String, visible: Boolean = false,
+    channel: String, visible: Boolean = false, private var profile: ProxyEntity? = null,
 ) : BroadcastReceiver() {
     companion object {
+        private const val ACTION_NOTIFICATION_DELETED =
+            "io.nekohasekai.sagernet.SERVICE_NOTIFICATION_DELETED"
+        private const val REQUEST_NOTIFICATION_DELETE = 3
         const val notificationId = 1
-        val flags =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        const val persistentStatusChannel = "service-vpn-persistent"
+        const val flags = PendingIntent.FLAG_IMMUTABLE
 
         fun genTitle(ent: ProxyEntity): String {
+            return genTitle(ent, ent.displayName())
+        }
+
+        fun genNotificationTitle(ent: ProxyEntity, countryIndicatorEnabled: Boolean): String {
+            return genTitle(
+                ent,
+                ProfileCountryResolver.presentationName(ent, countryIndicatorEnabled),
+            )
+        }
+
+        private fun genTitle(ent: ProxyEntity, profileName: String): String {
             val gn = if (DataStore.showGroupInNotification)
                 SagerDatabase.groupDao.getById(ent.groupId)?.displayName() else null
-            return if (gn == null) ent.displayName() else "[$gn] ${ent.displayName()}"
+            return if (gn == null) profileName else "[$gn] $profileName"
         }
     }
 
@@ -101,26 +121,60 @@ class ServiceNotification(
         update()
     }
 
+    suspend fun postNotificationCountryIndicator(enabled: Boolean) {
+        profile = profile?.let { ProfileManager.getProfile(it.id) ?: it }
+        useBuilder {
+            profile?.let { activeProfile ->
+                it.setContentTitle(genNotificationTitle(activeProfile, enabled))
+            }
+            it.setLargeIcon(countryIndicatorIcon(enabled))
+        }
+        update()
+    }
+
     suspend fun postNotificationWakeLockStatus(acquired: Boolean) {
         updateActions()
         useBuilder {
             it.priority =
-                if (acquired) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW
+                if (persistent) {
+                    NotificationCompat.PRIORITY_LOW
+                } else if (acquired) {
+                    NotificationCompat.PRIORITY_HIGH
+                } else {
+                    NotificationCompat.PRIORITY_LOW
+                }
         }
         update()
     }
 
     private val showDirectSpeed = DataStore.showDirectSpeed
+    private val persistent = DataStore.persistentStatusNotification
+    private val notificationChannel = if (persistent) persistentStatusChannel else channel
 
-    private val builder = NotificationCompat.Builder(service as Context, channel)
+    private val builder = NotificationCompat.Builder(service as Context, notificationChannel)
         .setWhen(0)
         .setTicker(service.getString(R.string.forward_success))
         .setContentTitle(title)
         .setOnlyAlertOnce(true)
+        .setAutoCancel(false)
         .setContentIntent(SagerNet.configureIntent(service))
+        .setDeleteIntent(
+            PendingIntent.getBroadcast(
+                service,
+                REQUEST_NOTIFICATION_DELETE,
+                Intent(ACTION_NOTIFICATION_DELETED).setPackage(service.packageName),
+                flags
+            )
+        )
         .setSmallIcon(R.drawable.ic_service_active)
+        .preferSmallIcon()
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
-        .setPriority(if (visible) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
+        .setPriority(
+            if (persistent || visible) NotificationCompat.PRIORITY_LOW
+            else NotificationCompat.PRIORITY_MIN
+        )
+        .setOngoing(persistent)
+        .setSilent(persistent)
 
     private val buildLock = Mutex()
 
@@ -130,22 +184,44 @@ class ServiceNotification(
         }
     }
 
+    private fun NotificationCompat.Builder.buildServiceNotification(): Notification =
+        build().apply {
+            if (persistent) {
+                flags = flags or Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR
+            }
+        }
+
     init {
         service as Context
 
         Theme.apply(app)
         Theme.apply(service)
         builder.color = service.getColorAttr(R.attr.colorPrimary)
+        builder.setLargeIcon(countryIndicatorIcon(DataStore.notificationCountryIndicator))
 
-        service.registerReceiver(this, IntentFilter().apply {
+        val intentFilter = IntentFilter().apply {
+            addAction(ACTION_NOTIFICATION_DELETED)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
-        })
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            service.registerReceiver(this, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            service.registerReceiver(this, intentFilter)
+        }
 
         runOnMainDispatcher {
             updateActions()
             show()
         }
+    }
+
+    private fun countryIndicatorIcon(enabled: Boolean) = if (enabled) {
+        profile?.let(ProfileCountryResolver::effectiveCountryCode)?.let { countryCode ->
+            CountryFlagRenderer.renderNotificationIcon(service as Context, countryCode)
+        }
+    } else {
+        null
     }
 
     private suspend fun updateActions() {
@@ -178,6 +254,12 @@ class ServiceNotification(
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_NOTIFICATION_DELETED) {
+            if (persistent && service.data.state.started) runOnMainDispatcher {
+                show()
+            }
+            return
+        }
         if (service.data.state == BaseService.State.Connected) {
             listenPostSpeed = intent.action == Intent.ACTION_SCREEN_ON
         }
@@ -188,13 +270,21 @@ class ServiceNotification(
         useBuilder {
             try {
                 if (Build.VERSION.SDK_INT >= 34) {
+                    val foregroundServiceType = if (
+                        service.hasActiveWifiRules() &&
+                        SagerNet.application.nativeInterface.canReadWifiIdentityInBackground()
+                    ) {
+                        FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED or FOREGROUND_SERVICE_TYPE_LOCATION
+                    } else {
+                        FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
+                    }
                     (service as Service).startForeground(
                         notificationId,
-                        it.build(),
-                        FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
+                        it.buildServiceNotification(),
+                        foregroundServiceType
                     )
                 } else {
-                    (service as Service).startForeground(notificationId, it.build())
+                    (service as Service).startForeground(notificationId, it.buildServiceNotification())
                 }
             } catch (e: Exception) {
                 Toast.makeText(
@@ -206,7 +296,12 @@ class ServiceNotification(
         }
 
     private suspend fun update() = useBuilder {
-        NotificationManagerCompat.from(service as Service).notify(notificationId, it.build())
+        try {
+            NotificationManagerCompat.from(service as Service)
+                .notify(notificationId, it.buildServiceNotification())
+        } catch (_: SecurityException) {
+            // Notification permission can be revoked while the foreground service is running.
+        }
     }
 
     fun destroy() {

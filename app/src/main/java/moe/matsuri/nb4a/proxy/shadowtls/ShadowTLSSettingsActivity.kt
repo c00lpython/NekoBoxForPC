@@ -20,6 +20,7 @@ class ShadowTLSSettingsActivity : ProfileSettingsActivity<ShadowTLSBean>() {
     private val serverPort = pbm.add(PreferenceBinding(Type.TextToInt, "serverPort"))
     private val password = pbm.add(PreferenceBinding(Type.Text, "password"))
     private val version = pbm.add(PreferenceBinding(Type.TextToInt, "version"))
+    private val proxyProtocol = pbm.add(PreferenceBinding(Type.TextToInt, "proxyProtocol"))
     private val sni = pbm.add(PreferenceBinding(Type.Text, "sni"))
     private val alpn = pbm.add(PreferenceBinding(Type.Text, "alpn"))
     private val certificates = pbm.add(PreferenceBinding(Type.Text, "certificates"))

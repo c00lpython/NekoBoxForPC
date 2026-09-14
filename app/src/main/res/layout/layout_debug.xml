@@ -7,18 +7,18 @@
 
     <Button
         android:id="@+id/debug_crash"
-        style="@style/Widget.SagerNet.Button"
+        style="@style/Widget.Material3.Button.SagerNet"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Crash From Kt"
-        android:textColor="@color/white" />
+        android:textColor="?attr/colorOnPrimary" />
 
     <Button
         android:id="@+id/reset_settings"
-        style="@style/Widget.SagerNet.Button"
+        style="@style/Widget.Material3.Button.SagerNet"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Reset Settings"
-        android:textColor="@color/white" />
+        android:textColor="?attr/colorOnPrimary" />
 
 </LinearLayout>

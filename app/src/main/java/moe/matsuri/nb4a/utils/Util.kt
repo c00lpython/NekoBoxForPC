@@ -197,4 +197,14 @@ object Util {
         val encoded = match?.groupValues?.get(1) ?: ""
         return URLDecoder.decode(encoded, StandardCharsets.UTF_8.name())
     }
+
+    public const val securePasswordChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()"
+    public const val securePasswordCharsNoSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+    fun generateCryptoSecurePassword(length: Int = 10, chars: String = securePasswordChars): String {
+        val secureRandom = java.security.SecureRandom()
+        return (1..length)
+            .map { chars[secureRandom.nextInt(chars.length)] }
+            .joinToString("")
+    }
 }

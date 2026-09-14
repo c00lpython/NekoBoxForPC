@@ -1,6 +1,12 @@
 package io.nekohasekai.sagernet.widget
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.util.AttributeSet
@@ -17,9 +23,11 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.BaseProgressIndicator
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
+import io.nekohasekai.sagernet.ktx.dp2pxf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import java.util.*
+import kotlin.math.min
 
 class ServiceButton @JvmOverloads constructor(
     context: Context,
@@ -27,6 +35,17 @@ class ServiceButton @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) :
     FloatingActionButton(context, attrs, defStyleAttr), DynamicAnimation.OnAnimationEndListener {
+    companion object {
+        private const val GLOBAL_MODE_ICON_SCALE = 20f / 24f
+        private const val GLOBAL_MODE_ICON_OFFSET_X_DP = 1
+    }
+
+    private val globalModeOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeWidth = dp2pxf(4)
+    }
+    private val globalModeOutlineBounds = RectF()
 
     private val callback = object : Animatable2Compat.AnimationCallback() {
         override fun onAnimationEnd(drawable: Drawable) {
@@ -79,6 +98,8 @@ class ServiceButton @JvmOverloads constructor(
     private val animationQueue = ArrayDeque<AnimatedState>()
 
     private var checked = false
+    private var globalModeStyle = false
+    private var globalModeOutline = false
     private var delayedAnimation: Job? = null
     private lateinit var progress: BaseProgressIndicator<*>
     fun initProgress(progress: BaseProgressIndicator<*>) {
@@ -96,6 +117,64 @@ class ServiceButton @JvmOverloads constructor(
     fun hideProgress() {
         delayedAnimation?.cancel()
         progress.hide()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (globalModeStyle) {
+            canvas.save()
+            canvas.scale(GLOBAL_MODE_ICON_SCALE, GLOBAL_MODE_ICON_SCALE, width / 2f, height / 2f)
+            super.onDraw(canvas)
+            canvas.restore()
+        } else {
+            canvas.save()
+            canvas.translate(dp2pxf(GLOBAL_MODE_ICON_OFFSET_X_DP), 0f)
+            super.onDraw(canvas)
+            canvas.restore()
+        }
+        if (!globalModeOutline) return
+
+        val strokeWidth = globalModeOutlinePaint.strokeWidth
+        val outlineSize = min(width, height).toFloat()
+        val inset = strokeWidth / 2f + dp2pxf(1)
+        val left = (width - outlineSize) / 2f + inset
+        val top = (height - outlineSize) / 2f + inset
+        globalModeOutlineBounds.set(
+            left,
+            top,
+            left + outlineSize - inset * 2f,
+            top + outlineSize - inset * 2f,
+        )
+        canvas.drawOval(globalModeOutlineBounds, globalModeOutlinePaint)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        globalModeOutlinePaint.shader = LinearGradient(
+            0f,
+            0f,
+            w.toFloat(),
+            h.toFloat(),
+            intArrayOf(
+                Color.rgb(0, 220, 198),
+                Color.rgb(85, 220, 116),
+                Color.rgb(0, 164, 220),
+            ),
+            floatArrayOf(0f, 0.54f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+    }
+
+    fun setGlobalModeStyle(enabled: Boolean, outline: Boolean) {
+        var changed = false
+        if (globalModeStyle != enabled) {
+            globalModeStyle = enabled
+            changed = true
+        }
+        if (globalModeOutline != outline) {
+            globalModeOutline = outline
+            changed = true
+        }
+        if (changed) invalidate()
     }
 
     override fun onCreateDrawableState(extraSpace: Int): IntArray {

@@ -4,6 +4,7 @@ import io.nekohasekai.sagernet.database.DataStore
 import moe.matsuri.nb4a.SingBoxOptions.RuleSet
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
+import io.nekohasekai.sagernet.utils.RulesetSuggestionRepository
 import kotlin.Exception
 
 object SingBoxOptionsUtil {
@@ -69,7 +70,25 @@ fun SingBoxOptions.DNSRule_DefaultOptions.checkEmpty(): Boolean {
     if (domain_suffix?.isNotEmpty() == true) return false
     if (domain_regex?.isNotEmpty() == true) return false
     if (domain_keyword?.isNotEmpty() == true) return false
+    if (ip_cidr?.isNotEmpty() == true) return false
+    if (ip_is_private == true) return false
+    if (network_type?.isNotEmpty() == true) return false
+    if (wifi_ssid?.isNotEmpty() == true) return false
+    if (wifi_bssid?.isNotEmpty() == true) return false
+    if (source_ip_cidr?.isNotEmpty() == true) return false
+    if (source_port?.isNotEmpty() == true) return false
+    if (source_port_range?.isNotEmpty() == true) return false
+    if (port?.isNotEmpty() == true) return false
+    if (port_range?.isNotEmpty() == true) return false
+    if (network?.isNotEmpty() == true) return false
+    if (protocol?.isNotEmpty() == true) return false
+    if (package_name?.isNotEmpty() == true) return false
+    if (package_name_regex?.isNotEmpty() == true) return false
+    if (outbound?.isNotEmpty() == true) return false
     if (user_id?.isNotEmpty() == true) return false
+    if (!clash_mode.isNullOrBlank()) return false
+    if (!action.isNullOrBlank()) return false
+    if (!server.isNullOrBlank()) return false
     return true
 }
 
@@ -150,6 +169,10 @@ fun SingBoxOptions.Rule_DefaultOptions.makeSingBoxRule(list: List<String>, isIP:
 }
 
 fun SingBoxOptions.Rule_DefaultOptions.checkEmpty(): Boolean {
+    if (network_type?.isNotEmpty() == true) return false
+    if (wifi_ssid?.isNotEmpty() == true) return false
+    if (wifi_bssid?.isNotEmpty() == true) return false
+    if (network?.isNotEmpty() == true) return false
     if (ip_cidr?.isNotEmpty() == true) return false
     if (domain?.isNotEmpty() == true) return false
     if (rule_set?.isNotEmpty() == true) return false
@@ -157,10 +180,15 @@ fun SingBoxOptions.Rule_DefaultOptions.checkEmpty(): Boolean {
     if (domain_regex?.isNotEmpty() == true) return false
     if (domain_keyword?.isNotEmpty() == true) return false
     if (user_id?.isNotEmpty() == true) return false
+    if (package_name?.isNotEmpty() == true) return false
+    if (package_name_exclude?.isNotEmpty() == true) return false
+    if (package_name_regex?.isNotEmpty() == true) return false
     if (protocol?.isNotEmpty() == true) return false
     //
     if (port?.isNotEmpty() == true) return false
     if (port_range?.isNotEmpty() == true) return false
+    if (source_port?.isNotEmpty() == true) return false
+    if (source_port_range?.isNotEmpty() == true) return false
     if (source_ip_cidr?.isNotEmpty() == true) return false
     //
     if (!_hack_custom_config.isNullOrBlank()) return false
@@ -168,31 +196,39 @@ fun SingBoxOptions.Rule_DefaultOptions.checkEmpty(): Boolean {
 }
 
 fun processRulesetUrl(origUrl: String): Pair<String, Boolean> {
-    return when {
-        origUrl.startsWith("rsip:") -> {
-            // IP类型ruleset
-            Pair(origUrl.substring(5), true)
-        }
-        origUrl.startsWith("rssite:") -> {
-            // 域名类型ruleset
-            Pair(origUrl.substring(7), false)
-        }
-        else -> {
-            throw kotlin.Exception(SagerNet.application.getString(R.string.ruleset_prefix_error))
-        }
+    val trimmed = origUrl.trim()
+    val (prefix, isIPRuleset) = when {
+        trimmed.startsWith("rsip:") -> "rsip:" to true
+        trimmed.startsWith("rssite:") -> "rssite:" to false
+        else -> throw kotlin.Exception(SagerNet.application.getString(R.string.ruleset_prefix_error))
     }
+    val payload = trimmed.removePrefix(prefix).trim()
+    if (payload.startsWith("http://") || payload.startsWith("https://")) {
+        return payload to isIPRuleset
+    }
+    val resolved = RulesetSuggestionRepository.load().resolve("$prefix$payload")
+    return resolved?.let { it to isIPRuleset }
+        ?: throw kotlin.Exception(
+            SagerNet.application.getString(R.string.ruleset_not_found_error, trimmed)
+        )
 }
 
-fun generateRemoteRuleSet(url: String, ruleSets: MutableList<RuleSet>, updateInterval: String): String {
+fun generateRemoteRuleSet(url: String, ruleSets: MutableList<RuleSet>, updateInterval: String, mainProxyTag: String): String {
     val hashCode = kotlin.math.abs(url.hashCode())
     val tag = "ruleset-$hashCode"
-
+    val format = if (url.substringAfterLast('/', "").substringBefore('?').endsWith(".json")) {
+        "source"
+    } else {
+        "binary"
+    }
+    
     // 添加到规则集列表
     ruleSets.add(RuleSet().apply {
         type = "remote"
         this.tag = tag
-        format = if (url.substringBefore("?").endsWith(".json")) "source" else "binary"
+        this.format = format
         this.url = url
+        download_detour = mainProxyTag
         update_interval = updateInterval
     })
     

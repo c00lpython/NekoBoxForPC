@@ -112,10 +112,11 @@ public class JavaUtil {
 
     @TargetApi(Build.VERSION_CODES.P)
     private static void tryLockOrRecreateFile(File file) {
-        try {
-            FileLock tryLock = new RandomAccessFile(file, "rw").getChannel().tryLock();
+        try (RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw");
+             FileLock tryLock = randomAccessFile.getChannel().tryLock()) {
             if (tryLock != null) {
-                tryLock.close();
+                // Lock acquired: closing the try-with-resources scope releases both the lock and
+                // the RandomAccessFile/channel that owns it.
             } else {
                 createFile(file, file.delete());
             }

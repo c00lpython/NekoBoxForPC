@@ -25,6 +25,9 @@ class NaiveSettingsActivity : ProfileSettingsActivity<NaiveBean>() {
         DataStore.serverHeaders = extraHeaders
         DataStore.serverInsecureConcurrency = insecureConcurrency
         DataStore.profileCacheStore.putBoolean("sUoT", sUoT)
+        DataStore.profileCacheStore.putString("quicCongestionControl", quicCongestionControl)
+        DataStore.profileCacheStore.putString("streamReceiveWindow", streamReceiveWindow)
+        DataStore.profileCacheStore.putString("quicSessionReceiveWindow", quicSessionReceiveWindow)
     }
 
     override fun NaiveBean.serialize() {
@@ -39,6 +42,9 @@ class NaiveSettingsActivity : ProfileSettingsActivity<NaiveBean>() {
         extraHeaders = DataStore.serverHeaders.replace("\r\n", "\n")
         insecureConcurrency = DataStore.serverInsecureConcurrency
         sUoT = DataStore.profileCacheStore.getBoolean("sUoT")
+        quicCongestionControl = DataStore.profileCacheStore.getString("quicCongestionControl").orEmpty()
+        streamReceiveWindow = DataStore.profileCacheStore.getString("streamReceiveWindow").orEmpty()
+        quicSessionReceiveWindow = DataStore.profileCacheStore.getString("quicSessionReceiveWindow").orEmpty()
     }
 
     override fun PreferenceFragmentCompat.createPreferences(

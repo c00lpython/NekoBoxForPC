@@ -6,6 +6,32 @@ import moe.matsuri.nb4a.utils.Util
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONObject
 
+// Keep in sync with the sing-shadowsocks2 method registries used by sing-box.
+private val supportedShadowsocksMethods = setOf(
+    "none",
+    "2022-blake3-aes-128-gcm",
+    "2022-blake3-aes-256-gcm",
+    "2022-blake3-chacha20-poly1305",
+    "aes-128-gcm",
+    "aes-192-gcm",
+    "aes-256-gcm",
+    "chacha20-ietf-poly1305",
+    "xchacha20-ietf-poly1305",
+    "aes-128-ctr",
+    "aes-192-ctr",
+    "aes-256-ctr",
+    "aes-128-cfb",
+    "aes-192-cfb",
+    "aes-256-cfb",
+    "rc4-md5",
+    "chacha20-ietf",
+    "xchacha20",
+)
+
+private fun normalizeShadowsocksMethod(method: String?): String {
+    return method.takeIf(supportedShadowsocksMethods::contains) ?: "none"
+}
+
 fun ShadowsocksBean.fixPluginName() {
     if (plugin.startsWith("simple-obfs")) {
         plugin = plugin.replaceFirst("simple-obfs", "obfs-local")
@@ -33,7 +59,7 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
             return ShadowsocksBean().apply {
                 serverAddress = link.host
                 serverPort = link.port
-                method = link.username
+                method = normalizeShadowsocksMethod(link.username)
                 password = link.password
                 plugin = link.queryParameter("plugin") ?: ""
                 name = link.fragment
@@ -46,7 +72,7 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
         return ShadowsocksBean().apply {
             serverAddress = link.host
             serverPort = link.port
-            method = methodAndPswd.substringBefore(":")
+            method = normalizeShadowsocksMethod(methodAndPswd.substringBefore(":"))
             password = methodAndPswd.substringAfter(":")
             plugin = link.queryParameter("plugin") ?: ""
             name = link.fragment
@@ -64,7 +90,7 @@ fun parseShadowsocks(url: String): ShadowsocksBean {
         return ShadowsocksBean().apply {
             serverAddress = link.host
             serverPort = link.port
-            method = link.username
+            method = normalizeShadowsocksMethod(link.username)
             password = link.password
             plugin = ""
             val remarks = url.substringAfter("#").unUrlSafe()
@@ -97,7 +123,7 @@ fun JSONObject.parseShadowsocks(): ShadowsocksBean {
         serverAddress = getStr("server")
         serverPort = getIntNya("server_port")
         password = getStr("password")
-        method = getStr("method")
+        method = normalizeShadowsocksMethod(getStr("method"))
         name = optString("remarks", "")
 
         val pId = getStr("plugin")

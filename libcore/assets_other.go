@@ -2,4 +2,8 @@
 
 package libcore
 
-func extractAssets() {}
+func extractAssets() bool { return false }
+
+func resetPanelAssets() error {
+	return nil
+}

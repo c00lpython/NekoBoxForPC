@@ -27,7 +27,35 @@
         <item>1</item>
     </string-array>
 
+    <string-array name="connection_option_entries">
+        <item>@string/connection_option_default</item>
+        <item>@string/connection_option_enabled</item>
+        <item>@string/connection_option_disabled</item>
+    </string-array>
+    <string-array name="connection_option_values">
+        <item></item>
+        <item>true</item>
+        <item>false</item>
+    </string-array>
+
+    <string-array name="subscription_traffic_unit_entries">
+        <item>@string/subscription_traffic_unit_binary</item>
+        <item>@string/subscription_traffic_unit_decimal</item>
+    </string-array>
+
+    <string-array name="core_profiler_mode_entries">
+        <item>@string/core_profiler_mode_cpu</item>
+        <item>@string/core_profiler_mode_trace</item>
+    </string-array>
+
     <string-array name="int_array_3">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="vless_packet_encoding_value">
+        <item>3</item>
         <item>0</item>
         <item>1</item>
         <item>2</item>
@@ -46,6 +74,130 @@
         <item>2</item>
         <item>3</item>
         <item>4</item>
+    </string-array>
+
+    <string-array name="int_array_6">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </string-array>
+
+    <string-array name="connection_test_attempt_entries">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </string-array>
+
+    <string-array name="log_level_value" translatable="false">
+        <item>0</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
+    <string-array name="rules_provider_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>6</item>
+        <item>7</item>
+        <item>5</item>
+    </string-array>
+
+    <string-array name="urltest_standard_entry">
+        <item>@string/urltest_standard_rtt</item>
+        <item>@string/urltest_standard_handshake</item>
+        <item>@string/urltest_standard_first_handshake</item>
+    </string-array>
+
+    <string-array name="traffic_fragmentation_entry">
+        <item>@string/traffic_fragmentation_none</item>
+        <item>starifly</item>
+        <item>Exclave</item>
+        <item>ByeDPI</item>
+    </string-array>
+
+    <string-array name="traffic_fragmentation_value">
+        <item>none</item>
+        <item>starifly</item>
+        <item>exclave</item>
+        <item>byedpi</item>
+    </string-array>
+
+    <string-array name="exclave_fragmentation_method_entry">
+        <item>@string/tls_record_fragmentation</item>
+        <item>@string/tcp_segmentation</item>
+        <item>@string/tls_record_fragmentation_and_tcp_segmentation</item>
+    </string-array>
+
+    <string-array name="exclave_fragmentation_method_value">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="masterdnsvpn_resolver_balancing_entry">
+        <item>Round Robin</item>
+        <item>Random</item>
+        <item>Least Loss</item>
+        <item>Lowest Latency</item>
+        <item>Hybrid Score</item>
+        <item>Loss Then Latency</item>
+        <item>Least Loss Top Random</item>
+        <item>Least Loss Top Round Robin</item>
+    </string-array>
+
+    <string-array name="masterdnsvpn_resolver_balancing_value">
+        <item>2</item>
+        <item>1</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+    </string-array>
+
+    <string-array name="masterdnsvpn_compression_entry">
+        <item>Off</item>
+        <item>ZSTD</item>
+        <item>LZ4</item>
+        <item>ZLIB</item>
+    </string-array>
+
+    <string-array name="masterdnsvpn_compression_value">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
+
+    <string-array name="masterdnsvpn_encryption_method_entry">
+        <item>None</item>
+        <item>XOR</item>
+        <item>ChaCha20</item>
+        <item>AES-128-GCM</item>
+        <item>AES-192-GCM</item>
+        <item>AES-256-GCM</item>
+    </string-array>
+
+    <string-array name="masterdnsvpn_encryption_method_value">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
     </string-array>
 
     <string-array name="bypass_private_route">
@@ -300,6 +452,20 @@
         -->
     </string-array>
 
+    <string-array name="route_network_type_entry">
+        <item>Wi-Fi</item>
+        <item>@string/cellular</item>
+        <item>Ethernet</item>
+        <item>@string/routing_region_other</item>
+    </string-array>
+
+    <string-array name="route_network_type_value">
+        <item>wifi</item>
+        <item>cellular</item>
+        <item>ethernet</item>
+        <item>other</item>
+    </string-array>
+
     <string-array name="route_protocol_entry">
         <item>TCP and UDP</item>
         <item>TCP</item>
@@ -310,6 +476,46 @@
         <item />
         <item>tcp</item>
         <item>udp</item>
+    </string-array>
+
+    <string-array name="route_sniff_protocol_entry">
+        <item>@string/not_set</item>
+        <item>HTTP</item>
+        <item>TLS</item>
+        <item>QUIC</item>
+        <item>STUN</item>
+        <item>DNS</item>
+        <item>BitTorrent</item>
+        <item>DTLS</item>
+        <item>SSH</item>
+        <item>RDP</item>
+        <item>NTP</item>
+        <item>@string/route_protocol_custom</item>
+    </string-array>
+
+    <string-array name="route_sniff_protocol_value">
+        <item />
+        <item>http</item>
+        <item>tls</item>
+        <item>quic</item>
+        <item>stun</item>
+        <item>dns</item>
+        <item>bittorrent</item>
+        <item>dtls</item>
+        <item>ssh</item>
+        <item>rdp</item>
+        <item>ntp</item>
+        <item>__custom__</item>
+    </string-array>
+
+    <string-array name="yes_no_entry">
+        <item>@string/yes</item>
+        <item>@string/no</item>
+    </string-array>
+
+    <string-array name="yes_no_value">
+        <item>1</item>
+        <item>0</item>
     </string-array>
 
     <string-array name="outbound_entry">
@@ -327,13 +533,24 @@
     </string-array>
 
     <string-array name="front_proxy_entry">
-        <item>@string/ssh_auth_type_none</item>
+        <item>@string/none</item>
         <item>@string/route_profile</item>
     </string-array>
 
     <string-array name="front_proxy_value">
         <item>0</item>
         <item>3</item>
+    </string-array>
+
+    <string-array name="networks_entry">
+        <item>TCP</item>
+        <item>KCP</item>
+        <item>WebSocket</item>
+        <item>HTTP/2</item>
+        <item>QUIC</item>
+        <item>gRPC</item>
+        <item>HTTP Upgrade</item>
+        <item>XHTTP</item>
     </string-array>
 
     <string-array name="networks_value">
@@ -345,6 +562,16 @@
         <item>grpc</item>
         <item>httpupgrade</item>
         <item>xhttp</item>
+    </string-array>
+
+    <string-array name="kcp_headers_entry">
+        <item>@string/none</item>
+        <item>SRTP</item>
+        <item>uTP</item>
+        <item>WeChat Video</item>
+        <item>DTLS</item>
+        <item>WireGuard</item>
+        <item>DNS</item>
     </string-array>
 
     <string-array name="kcp_headers_value">
@@ -372,10 +599,10 @@
     </string-array>
 
     <string-array name="xhttp_mode_entry">
-        <item>auto</item>
-        <item>packet-up</item>
-        <item>stream-up</item>
-        <item>stream-one</item>
+        <item>Auto</item>
+        <item>Packet up</item>
+        <item>Stream up</item>
+        <item>Stream one</item>
     </string-array>
 
     <string-array name="xhttp_mode_value">
@@ -385,9 +612,91 @@
         <item>stream-one</item>
     </string-array>
 
+    <string-array name="xhttp_uplink_data_placement_entry">
+        <item>Default (body)</item>
+        <item>Header</item>
+        <item>Cookie</item>
+    </string-array>
+    <string-array name="xhttp_uplink_data_placement_value">
+        <item></item>
+        <item>header</item>
+        <item>cookie</item>
+    </string-array>
+
+    <string-array name="xhttp_session_placement_entry">
+        <item>Default (path)</item>
+        <item>Header</item>
+        <item>Query</item>
+        <item>Cookie</item>
+    </string-array>
+    <string-array name="xhttp_session_placement_value">
+        <item></item>
+        <item>header</item>
+        <item>query</item>
+        <item>cookie</item>
+    </string-array>
+
+    <string-array name="xhttp_padding_method_entry">
+        <item>Default (repeat-X)</item>
+        <item>Tokenish (Huffman)</item>
+    </string-array>
+    <string-array name="xhttp_padding_method_value">
+        <item></item>
+        <item>tokenish</item>
+    </string-array>
+
+    <string-array name="xhttp_x_padding_placement_entry">
+        <item>Default</item>
+        <item>queryInHeader</item>
+        <item>Header</item>
+        <item>Cookie</item>
+        <item>Query</item>
+        <item>Path</item>
+        <item>Body</item>
+    </string-array>
+    <string-array name="xhttp_x_padding_placement_value">
+        <item></item>
+        <item>queryInHeader</item>
+        <item>header</item>
+        <item>cookie</item>
+        <item>query</item>
+        <item>path</item>
+        <item>body</item>
+    </string-array>
+
+    <string-array name="xhttp_uplink_http_method_entry">
+        <item>Default (POST)</item>
+        <item>GET</item>
+        <item>PUT</item>
+        <item>PATCH</item>
+        <item>DELETE</item>
+        <item>OPTIONS</item>
+    </string-array>
+    <string-array name="xhttp_uplink_http_method_value">
+        <item></item>
+        <item>GET</item>
+        <item>PUT</item>
+        <item>PATCH</item>
+        <item>DELETE</item>
+        <item>OPTIONS</item>
+    </string-array>
+
+    <string-array name="xhttp_seq_placement_entry">
+        <item>Default (path)</item>
+        <item>Header</item>
+        <item>Query</item>
+        <item>Cookie</item>
+    </string-array>
+    <string-array name="xhttp_seq_placement_value">
+        <item></item>
+        <item>header</item>
+        <item>query</item>
+        <item>cookie</item>
+    </string-array>
+
     <string-array name="trojan_go_networks_entry">
-        <item>NONE</item>
-        <item>WEBSOCKET</item>
+        <item>@string/none</item>
+        <item>WebSocket</item>
     </string-array>
 
     <string-array name="trojan_go_networks_value">
@@ -396,8 +705,8 @@
     </string-array>
 
     <string-array name="trojan_go_security_entry">
-        <item>NONE</item>
-        <item>SHADOWSOCKS</item>
+        <item>@string/none</item>
+        <item>Shadowsocks</item>
     </string-array>
 
     <string-array name="trojan_go_security_value">
@@ -411,6 +720,14 @@
         <item>CHACHA20-IETF-POLY1305</item>
     </string-array>
 
+    <string-array name="vmess_encryption_entry">
+        <item>ChaCha20-Poly1305</item>
+        <item>AES-128-GCM</item>
+        <item>Auto</item>
+        <item>@string/none</item>
+        <item>Zero</item>
+    </string-array>
+
     <string-array name="vmess_encryption_value">
         <item>chacha20-poly1305</item>
         <item>aes-128-gcm</item>
@@ -419,9 +736,16 @@
         <item>zero</item>
     </string-array>
 
+    <string-array name="transport_layer_encryption_entry">
+        <item>@string/none</item>
+        <item>TLS</item>
+        <item>REALITY</item>
+    </string-array>
+
     <string-array name="transport_layer_encryption_value">
         <item>none</item>
         <item>tls</item>
+        <item>reality</item>
     </string-array>
 
     <string-array name="notification_entry">
@@ -456,6 +780,78 @@
         <item>UDP</item>
     </string-array>
 
+    <string-array name="mieru_mux_level_entry">
+        <item>MULTIPLEXING_DEFAULT</item>
+        <item>MULTIPLEXING_OFF</item>
+        <item>MULTIPLEXING_LOW</item>
+        <item>MULTIPLEXING_MIDDLE</item>
+        <item>MULTIPLEXING_HIGH</item>
+    </string-array>
+
+    <string-array name="mieru_mux_level_value">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
+
+    <string-array name="mieru_handshake_mode_entry">
+        <item>HANDSHAKE_DEFAULT</item>
+        <item>HANDSHAKE_STANDARD</item>
+        <item>HANDSHAKE_NO_WAIT</item>
+    </string-array>
+
+    <string-array name="mieru_handshake_mode_value">
+        <item>2</item>
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+
+    <string-array name="mieru_low_entropy_mode" translatable="false">
+        <item></item>
+        <item>LOW_ENTROPY_MODE_OFF</item>
+        <item>LOW_ENTROPY_MODE_32</item>
+        <item>LOW_ENTROPY_MODE_40</item>
+        <item>LOW_ENTROPY_MODE_48</item>
+        <item>LOW_ENTROPY_MODE_56</item>
+    </string-array>
+
+    <string-array name="mieru_low_entropy_mask_rotation" translatable="false">
+        <item></item>
+        <item>LOW_ENTROPY_MASK_NO_ROTATION</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_1</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_2</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_3</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_4</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_5</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_6</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_7</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_8</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_9</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_10</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_11</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_12</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_13</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_14</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_RIGHT_15</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_1</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_2</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_3</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_4</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_5</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_6</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_7</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_8</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_9</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_10</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_11</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_12</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_13</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_14</item>
+        <item>LOW_ENTROPY_MASK_ROTATE_LEFT_15</item>
+    </string-array>
+
     <string-array name="naive_proto_entry">
         <item>HTTPS</item>
         <item>QUIC</item>
@@ -465,12 +861,24 @@
         <item>https</item>
         <item>quic</item>
     </string-array>
+    <string-array name="naive_quic_congestion_control_entry" translatable="false">
+        <item>Default (BBR)</item><item>BBR</item><item>BBRv2</item><item>CUBIC</item><item>New Reno</item>
+    </string-array>
+    <string-array name="naive_quic_congestion_control_value" translatable="false">
+        <item></item><item>bbr</item><item>bbr2</item><item>cubic</item><item>reno</item>
+    </string-array>
 
     <string-array name="night_mode">
         <item>@string/follow_system</item>
         <item>@string/enable</item>
         <item>@string/disable</item>
         <item>@string/auto</item>
+    </string-array>
+    <string-array name="certificate_authority">
+        <item>@string/system</item>
+        <item>@string/mozilla</item>
+        <item>@string/system_and_user</item>
+        <item>@string/cert_chrome</item>
     </string-array>
     <string-array name="ipv6_mode">
         <item>@string/disable</item>
@@ -483,13 +891,26 @@
         <item>@string/route_rules_official</item>
         <item>Loyalsoldier (soffchen/sing-geosite)</item>
         <item>Chocolate4U/Iran-sing-box-rules</item>
-        <item>L11R/Antizapret-sing-box-geo</item>
+        <item>savely-krasovsky/Antizapret-sing-box-geo</item>
+        <item>@string/route_rules_itdog</item>
+        <item>Loyalsoldier/v2ray-rules-dat</item>
+        <item>runetfreedom/russia-v2ray-rules-dat</item>
         <item>@string/custom_rules_provider</item>
     </string-array>
 
     <string-array name="balancer_type">
         <item>@string/list</item>
         <item>@string/menu_group</item>
+    </string-array>
+
+    <string-array name="proxy_set_collect_type">
+        <item>@string/list</item>
+        <item>@string/proxy_set_type_group</item>
+    </string-array>
+
+    <string-array name="proxy_set_mode_entry">
+        <item>@string/proxy_set_mode_selector</item>
+        <item>@string/proxy_set_mode_url_test</item>
     </string-array>
 
     <string-array name="balancer_strategy_entry">
@@ -509,8 +930,8 @@
 
     <string-array name="hysteria_auth_type">
         <item>@string/plugin_disabled</item>
-        <item>STRING</item>
-        <item>BASE64</item>
+        <item>String</item>
+        <item>Base64</item>
     </string-array>
 
     <string-array name="hysteria_version">
@@ -538,6 +959,7 @@
         <item>@string/group_order_origin</item>
         <item>@string/group_order_by_name</item>
         <item>@string/group_order_by_delay</item>
+        <item>@string/group_order_manual</item>
     </string-array>
 
     <string-array name="filter_modes">
@@ -546,8 +968,15 @@
         <item>@string/filter_exclude</item>
     </string-array>
 
+    <string-array name="spoof_app_modes">
+        <item>@string/spoof_app_none</item>
+        <item>Happ</item>
+        <item>v2RayTun</item>
+        <item>Incy</item>
+    </string-array>
+
     <string-array name="ssh_auth_type">
-        <item>@string/ssh_auth_type_none</item>
+        <item>@string/none</item>
         <item>@string/password</item>
         <item>@string/ssh_public_key</item>
     </string-array>
@@ -560,19 +989,21 @@
 
     <string-array name="hysteria_protocol">
         <item>UDP</item>
-        <item>FakeTCP (Root Required)</item>
+        <item>FakeTCP (root required)</item>
         <item>WeChat Video</item>
     </string-array>
 
     <string-array name="packet_encoding_entry">
-        <item>none</item>
-        <item>packet</item>
-        <item>xudp</item>
+        <item>@string/none</item>
+        <item>Packet</item>
+        <item>XUDP</item>
     </string-array>
 
-    <string-array name="mtu_select">
-        <item>1500</item>
-        <item>9000</item>
+    <string-array name="vless_packet_encoding_entry">
+        <item>@string/not_set</item>
+        <item>@string/none</item>
+        <item>Packet</item>
+        <item>XUDP</item>
     </string-array>
 
     <string-array name="mux_select_init" />
@@ -581,11 +1012,20 @@
         <item>h2mux</item>
         <item>smux</item>
         <item>yamux</item>
+        <item>mux.cool (Xray)</item>
     </string-array>
 
     <string-array name="mux_mode">
         <item>@string/mux_mode_max_streams</item>
         <item>@string/mux_mode_connections</item>
+    </string-array>
+
+    <string-array name="dns_network_entry">
+        <item>Auto</item>
+        <item>Prefer IPv6</item>
+        <item>Prefer IPv4</item>
+        <item>IPv4 only</item>
+        <item>IPv6 only</item>
     </string-array>
 
     <string-array name="dns_network_select">
@@ -594,6 +1034,64 @@
         <item>prefer_ipv4</item>
         <item>ipv4_only</item>
         <item>ipv6_only</item>
+    </string-array>
+
+    <string-array name="dns_rule_action_entry">
+        <item>@string/dns_rule_action_route</item>
+        <item>@string/dns_rule_action_route_options</item>
+        <item>@string/dns_rule_action_reject</item>
+        <item>@string/dns_rule_action_predefined</item>
+    </string-array>
+
+    <string-array name="dns_rule_action_value">
+        <item>route</item>
+        <item>route-options</item>
+        <item>reject</item>
+        <item>predefined</item>
+    </string-array>
+
+    <string-array name="dns_rule_server_entry">
+        <item>@string/dns_route_direct</item>
+        <item>@string/dns_route_remote</item>
+        <item>@string/dns_route_block</item>
+        <item>@string/dns_route_choose_custom</item>
+    </string-array>
+
+    <string-array name="dns_rule_server_value">
+        <item>dns-direct</item>
+        <item>dns-remote</item>
+        <item>__block__</item>
+        <item>__custom__</item>
+    </string-array>
+
+    <string-array name="dns_rcode_entry">
+        <item>NOERROR</item>
+        <item>FORMERR</item>
+        <item>SERVFAIL</item>
+        <item>NXDOMAIN</item>
+        <item>NOTIMP</item>
+        <item>REFUSED</item>
+    </string-array>
+
+    <string-array name="dns_rcode_value">
+        <item>NOERROR</item>
+        <item>FORMERR</item>
+        <item>SERVFAIL</item>
+        <item>NXDOMAIN</item>
+        <item>NOTIMP</item>
+        <item>REFUSED</item>
+    </string-array>
+
+    <string-array name="dns_reject_method_entry">
+        <item>Default</item>
+        <item>Drop</item>
+        <item>Reply</item>
+    </string-array>
+
+    <string-array name="dns_reject_method_value">
+        <item></item>
+        <item>drop</item>
+        <item>reply</item>
     </string-array>
 
     <string-array name="exe_prefer_provider">
@@ -608,6 +1106,73 @@
 
     <string-array name="utls_fingerprint_entry">
         <item></item>
+        <item>Chrome</item>
+        <item>Firefox</item>
+        <item>Edge</item>
+        <item>Safari</item>
+        <item>360</item>
+        <item>QQ</item>
+        <item>iOS</item>
+        <item>Android</item>
+        <item>Random</item>
+        <item>Randomized</item>
+        <item>Golang</item>
+        <item>Custom</item>
+        <item>RandomizedALPN</item>
+        <item>RandomizedNoALPN</item>
+        <item>Firefox_Auto</item>
+        <item>Firefox_55</item>
+        <item>Firefox_56</item>
+        <item>Firefox_63</item>
+        <item>Firefox_65</item>
+        <item>Firefox_99</item>
+        <item>Firefox_102</item>
+        <item>Firefox_105</item>
+        <item>Firefox_120</item>
+        <item>Firefox_148</item>
+        <item>Chrome_Auto</item>
+        <item>Chrome_58</item>
+        <item>Chrome_62</item>
+        <item>Chrome_70</item>
+        <item>Chrome_72</item>
+        <item>Chrome_83</item>
+        <item>Chrome_87</item>
+        <item>Chrome_96</item>
+        <item>Chrome_100</item>
+        <item>Chrome_102</item>
+        <item>Chrome_100_PSK</item>
+        <item>Chrome_112_PSK_Shuf</item>
+        <item>Chrome_114_Padding_PSK_Shuf</item>
+        <item>Chrome_115_PQ</item>
+        <item>Chrome_115_PQ_PSK</item>
+        <item>Chrome_120</item>
+        <item>Chrome_120_PQ</item>
+        <item>Chrome_131</item>
+        <item>Chrome_133</item>
+        <item>Chrome_141_TA</item>
+        <item>Chrome_144_TA_PQS</item>
+        <item>IOS_Auto</item>
+        <item>IOS_12_1</item>
+        <item>IOS_13</item>
+        <item>IOS_14</item>
+        <item>Android_OkHttp_Auto</item>
+        <item>Android_11_OkHttp</item>
+        <item>Android_16_OkHttp</item>
+        <item>Edge_Auto</item>
+        <item>Edge_85</item>
+        <item>Edge_106</item>
+        <item>Safari_Auto</item>
+        <item>Safari_16_0</item>
+        <item>Safari_26_3</item>
+        <item>360_Auto</item>
+        <item>360_7_5</item>
+        <item>360_11_0</item>
+        <item>QQ_Auto</item>
+        <item>QQ_11_1</item>
+    </string-array>
+
+    <string-array name="utls_fingerprint_value">
+        <item></item>
         <item>chrome</item>
         <item>firefox</item>
         <item>edge</item>
@@ -618,6 +1183,224 @@
         <item>android</item>
         <item>random</item>
         <item>randomized</item>
+        <item>golang</item>
+        <item>custom</item>
+        <item>randomizedalpn</item>
+        <item>randomizednoalpn</item>
+        <item>firefox_auto</item>
+        <item>firefox_55</item>
+        <item>firefox_56</item>
+        <item>firefox_63</item>
+        <item>firefox_65</item>
+        <item>firefox_99</item>
+        <item>firefox_102</item>
+        <item>firefox_105</item>
+        <item>firefox_120</item>
+        <item>firefox_148</item>
+        <item>chrome_auto</item>
+        <item>chrome_58</item>
+        <item>chrome_62</item>
+        <item>chrome_70</item>
+        <item>chrome_72</item>
+        <item>chrome_83</item>
+        <item>chrome_87</item>
+        <item>chrome_96</item>
+        <item>chrome_100</item>
+        <item>chrome_102</item>
+        <item>chrome_100_psk</item>
+        <item>chrome_112_psk_shuf</item>
+        <item>chrome_114_padding_psk_shuf</item>
+        <item>chrome_115_pq</item>
+        <item>chrome_115_pq_psk</item>
+        <item>chrome_120</item>
+        <item>chrome_120_pq</item>
+        <item>chrome_131</item>
+        <item>chrome_133</item>
+        <item>chrome_141_ta</item>
+        <item>chrome_144_ta_pqs</item>
+        <item>ios_auto</item>
+        <item>ios_12_1</item>
+        <item>ios_13</item>
+        <item>ios_14</item>
+        <item>android_okhttp_auto</item>
+        <item>android_11_okhttp</item>
+        <item>android_16_okhttp</item>
+        <item>edge_auto</item>
+        <item>edge_85</item>
+        <item>edge_106</item>
+        <item>safari_auto</item>
+        <item>safari_16_0</item>
+        <item>safari_26_3</item>
+        <item>360_auto</item>
+        <item>360_7_5</item>
+        <item>360_11_0</item>
+        <item>qq_auto</item>
+        <item>qq_11_1</item>
+    </string-array>
+
+    <string-array name="adblock_https_fingerprint_entry">
+        <item>@string/none</item>
+        <item>Chrome</item>
+        <item>Firefox</item>
+        <item>Edge</item>
+        <item>Safari</item>
+        <item>360</item>
+        <item>QQ</item>
+        <item>iOS</item>
+        <item>Android</item>
+        <item>Random</item>
+        <item>Randomized</item>
+        <item>Golang</item>
+        <item>Custom</item>
+        <item>RandomizedALPN</item>
+        <item>RandomizedNoALPN</item>
+        <item>Firefox_Auto</item>
+        <item>Firefox_55</item>
+        <item>Firefox_56</item>
+        <item>Firefox_63</item>
+        <item>Firefox_65</item>
+        <item>Firefox_99</item>
+        <item>Firefox_102</item>
+        <item>Firefox_105</item>
+        <item>Firefox_120</item>
+        <item>Firefox_148</item>
+        <item>Chrome_Auto</item>
+        <item>Chrome_58</item>
+        <item>Chrome_62</item>
+        <item>Chrome_70</item>
+        <item>Chrome_72</item>
+        <item>Chrome_83</item>
+        <item>Chrome_87</item>
+        <item>Chrome_96</item>
+        <item>Chrome_100</item>
+        <item>Chrome_102</item>
+        <item>Chrome_100_PSK</item>
+        <item>Chrome_112_PSK_Shuf</item>
+        <item>Chrome_114_Padding_PSK_Shuf</item>
+        <item>Chrome_115_PQ</item>
+        <item>Chrome_115_PQ_PSK</item>
+        <item>Chrome_120</item>
+        <item>Chrome_120_PQ</item>
+        <item>Chrome_131</item>
+        <item>Chrome_133</item>
+        <item>Chrome_141_TA</item>
+        <item>Chrome_144_TA_PQS</item>
+        <item>IOS_Auto</item>
+        <item>IOS_12_1</item>
+        <item>IOS_13</item>
+        <item>IOS_14</item>
+        <item>Android_OkHttp_Auto</item>
+        <item>Android_11_OkHttp</item>
+        <item>Android_16_OkHttp</item>
+        <item>Edge_Auto</item>
+        <item>Edge_85</item>
+        <item>Edge_106</item>
+        <item>Safari_Auto</item>
+        <item>Safari_16_0</item>
+        <item>Safari_26_3</item>
+        <item>360_Auto</item>
+        <item>360_7_5</item>
+        <item>360_11_0</item>
+        <item>QQ_Auto</item>
+        <item>QQ_11_1</item>
+    </string-array>
+
+    <string-array name="adblock_https_fingerprint_value">
+        <item></item>
+        <item>chrome</item>
+        <item>firefox</item>
+        <item>edge</item>
+        <item>safari</item>
+        <item>360</item>
+        <item>qq</item>
+        <item>ios</item>
+        <item>android</item>
+        <item>random</item>
+        <item>randomized</item>
+        <item>golang</item>
+        <item>custom</item>
+        <item>randomizedalpn</item>
+        <item>randomizednoalpn</item>
+        <item>firefox_auto</item>
+        <item>firefox_55</item>
+        <item>firefox_56</item>
+        <item>firefox_63</item>
+        <item>firefox_65</item>
+        <item>firefox_99</item>
+        <item>firefox_102</item>
+        <item>firefox_105</item>
+        <item>firefox_120</item>
+        <item>firefox_148</item>
+        <item>chrome_auto</item>
+        <item>chrome_58</item>
+        <item>chrome_62</item>
+        <item>chrome_70</item>
+        <item>chrome_72</item>
+        <item>chrome_83</item>
+        <item>chrome_87</item>
+        <item>chrome_96</item>
+        <item>chrome_100</item>
+        <item>chrome_102</item>
+        <item>chrome_100_psk</item>
+        <item>chrome_112_psk_shuf</item>
+        <item>chrome_114_padding_psk_shuf</item>
+        <item>chrome_115_pq</item>
+        <item>chrome_115_pq_psk</item>
+        <item>chrome_120</item>
+        <item>chrome_120_pq</item>
+        <item>chrome_131</item>
+        <item>chrome_133</item>
+        <item>chrome_141_ta</item>
+        <item>chrome_144_ta_pqs</item>
+        <item>ios_auto</item>
+        <item>ios_12_1</item>
+        <item>ios_13</item>
+        <item>ios_14</item>
+        <item>android_okhttp_auto</item>
+        <item>android_11_okhttp</item>
+        <item>android_16_okhttp</item>
+        <item>edge_auto</item>
+        <item>edge_85</item>
+        <item>edge_106</item>
+        <item>safari_auto</item>
+        <item>safari_16_0</item>
+        <item>safari_26_3</item>
+        <item>360_auto</item>
+        <item>360_7_5</item>
+        <item>360_11_0</item>
+        <item>qq_auto</item>
+        <item>qq_11_1</item>
+    </string-array>
+
+    <string-array name="trusttunnel_protocol_entry">
+        <item>HTTPS</item>
+        <item>Prefer QUIC</item>
+        <item>Force QUIC</item>
+    </string-array>
+
+    <string-array name="trusttunnel_protocol_value">
+        <item>https</item>
+        <item>prefer_quic</item>
+        <item>force_quic</item>
+    </string-array>
+
+    <string-array name="trusttunnel_cronet_stack_entry">
+        <item>No</item>
+        <item>For HTTPS</item>
+        <item>For QUIC</item>
+        <item>For HTTPS and QUIC</item>
+    </string-array>
+
+    <string-array name="trusttunnel_cronet_stack_value">
+        <item>no</item>
+        <item>https</item>
+        <item>quic</item>
+        <item>https_quic</item>
+    </string-array>
+
+    <string-array name="tuic_udp_relay_mode_entry">
+        <item>Native</item>
+        <item>QUIC</item>
     </string-array>
 
     <string-array name="tuic_udp_relay_mode_value">
@@ -625,10 +1408,36 @@
         <item>quic</item>
     </string-array>
 
+    <string-array name="tuic_congestion_controller_entry">
+        <item>CUBIC</item>
+        <item>New Reno</item>
+        <item>BBR</item>
+    </string-array>
+
     <string-array name="tuic_congestion_controller_value">
         <item>cubic</item>
         <item>new_reno</item>
         <item>bbr</item>
+    </string-array>
+
+    <string-array name="trusttunnel_quic_congestion_controller_entry" translatable="false">
+        <item></item>
+        <item>bbr</item>
+        <item>cubic</item>
+        <item>reno</item>
+        <item>bbr_standard</item>
+        <item>bbr2</item>
+        <item>bbr_variant</item>
+    </string-array>
+
+    <string-array name="trusttunnel_quic_congestion_controller_value" translatable="false">
+        <item></item>
+        <item>bbr</item>
+        <item>cubic</item>
+        <item>reno</item>
+        <item>bbr_standard</item>
+        <item>bbr2</item>
+        <item>bbr_variant</item>
     </string-array>
 
     <string-array name="xtls_flow_value" translatable="false">
@@ -642,12 +1451,15 @@
         <item>v2ray-plugin</item>
     </string-array>
 
-    <string-array name="log_level" translatable="false">
-        <item>none</item>
-        <item>warn</item>
-        <item>info</item>
-        <item>debug</item>
-        <item>trace</item>
+    <string-array name="log_level_entry">
+        <item>@string/none</item>
+        <item>Panic</item>
+        <item>Fatal</item>
+        <item>Error</item>
+        <item>Warning</item>
+        <item>Info</item>
+        <item>Debug</item>
+        <item>Trace</item>
     </string-array>
 
     <string-array name="shadowtls_version_value">
@@ -658,7 +1470,34 @@
     <string-array name="traffic_sniffing_values">
         <item>@string/off</item>
         <item>@string/sniff_routing</item>
-        <item>@string/sniff_override</item>
+    </string-array>
+
+    <string-array name="tun_unrecognized_traffic_mode" translatable="true">
+        <item>Block</item>
+        <item>Normal: Direct, Bypass: Block</item>
+        <item>No proxy (direct)</item>
+        <item>Always proxy</item>
+        <item>Don\'t protect TUN</item>
+    </string-array>
+
+    <string-array name="tun_unrecognized_traffic_mode_values" translatable="false">
+        <item>block</item>
+        <item>normal-direct-bypass-block</item>
+        <item>direct</item>
+        <item>proxy</item>
+        <item>insecure</item>
+    </string-array>
+
+    <string-array name="tun_system_dns_traffic_mode" translatable="true">
+        <item>Normal: Proxy, Bypass: Direct</item>
+        <item>Proxy</item>
+        <item>Direct (DNS leak!)</item>
+    </string-array>
+
+    <string-array name="tun_system_dns_traffic_mode_values" translatable="false">
+        <item>normal-proxy-bypass-direct</item>
+        <item>proxy</item>
+        <item>direct</item>
     </string-array>
 
     <!-- Snell Protocol -->
@@ -707,7 +1546,7 @@
     <string-array name="snell_v6_modes_entry">
         <item>Default</item>
         <item>Unshaped</item>
-        <item>Unsafe Raw</item>
+        <item>Unsafe raw</item>
     </string-array>
 
     <string-array name="snell_v6_modes_value">
@@ -716,4 +1555,43 @@
         <item>unsafe-raw</item>
     </string-array>
 
+    <string-array name="proxy_protocol_entry">
+        <item>Disabled</item>
+        <item>PROXY protocol v1</item>
+        <item>PROXY protocol v2</item>
+    </string-array>
+    <string-array name="proxy_protocol_value" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="subscription_banner_layout_entry">
+        <item>@string/subscription_banner_announcements</item>
+        <item>@string/subscription_banner_announcement_urls</item>
+        <item>@string/subscription_banner_traffic_text</item>
+        <item>@string/subscription_banner_traffic_bar</item>
+        <item>@string/subscription_banner_expiration_time</item>
+        <item>@string/subscription_banner_clickable</item>
+    </string-array>
+    <string-array name="subscription_banner_layout_value" translatable="false">
+        <item>announcements</item>
+        <item>announcement_urls</item>
+        <item>traffic_text</item>
+        <item>traffic_bar</item>
+        <item>expiration_time</item>
+        <item>clickable</item>
+    </string-array>
+    <string-array name="subscription_routing_interval_entries">
+        <item>@string/subscription_routing_interval_12_hours</item>
+        <item>@string/subscription_routing_interval_24_hours</item>
+        <item>@string/subscription_routing_interval_3_days</item>
+        <item>@string/subscription_routing_interval_7_days</item>
+    </string-array>
+    <string-array name="subscription_routing_interval_values" translatable="false">
+        <item>43200</item>
+        <item>86400</item>
+        <item>259200</item>
+        <item>604800</item>
+    </string-array>
 </resources>

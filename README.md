@@ -1,36 +1,17 @@
 # NekoBox for Android
 
-[![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
-[![Releases](https://img.shields.io/github/v/release/MatsuriDayo/NekoBoxForAndroid)](https://github.com/MatsuriDayo/NekoBoxForAndroid/releases)
+[![API](https://img.shields.io/badge/API-23%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=23)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-orange.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Contributors](https://img.shields.io/github/contributors/starifly/NekoBoxForAndroid)](https://github.com/starifly/NekoBoxForAndroid/graphs/contributors)
 
-## 免责声明
+## Disclaimer
 
-> 免责声明：本项目仅用于技术研究与代码学习之目的，不提供任何形式的网络代理服务。请勿将本项目用于违反当地法律法规的任何活动。请勿在生产环境中使用本项目，使用者应自行承担使用本项目可能带来的全部风险。若您下载或引用本项目，请在 24 小时内自行删除相关内容，并避免长期存储、分享或传播本项目的任何部分。**作者保留随时修改、更新或移除本项目及其内容的权利，恕不另行通知。**
-> 
-> Disclaimer: This project is intended solely for technical research and code learning purposes and does not provide any form of network proxy service. Please do not use this project for any activities that violate local laws and regulations. Do not use this project in production environments. Users are fully responsible for any risks that may arise from using this project. If you download or reference this project, please delete all related content within 24 hours and avoid long-term storage, distribution, or dissemination of any part of this project. **The author reserves the right to modify, update, or remove any part of this project or its contents at any time without prior notice.**
+> This project is intended solely for technical research and code learning purposes and does not provide any form of network proxy service. Please do not use this project for any activities that violate local laws and regulations. Do not use this project in production environments. Users are fully responsible for any risks that may arise from using this project. If you download or reference this project, please delete all related content within 24 hours and avoid long-term storage, distribution, or dissemination of any part of this project. **The author reserves the right to modify, update, or remove any part of this project or its contents at any time without prior notice.**
 
-## 下载 / Downloads
+## Downloads
 
-[![GitHub All Releases](https://img.shields.io/github/downloads/Matsuridayo/NekoBoxForAndroid/total?label=downloads-total&logo=github&style=flat-square)](https://github.com/starifly/NekoBoxForAndroid/releases)
+[4pda](https://4pda.to/forum/index.php?showtopic=1121122)
 
-[GitHub Releases 下载](https://github.com/starifly/NekoBoxForAndroid/releases)
-
-**Google Play 版本自 2024 年 5 月起已被第三方控制，为非开源版本，请不要下载。**
-
-**The Google Play version has been controlled by a third party since May 2024 and is a non-open
-source version. Please do not download it.**
-
-## 更新日志 & Telegram 发布频道 / Changelog & Telegram Channel
-
-https://t.me/Matsuridayo
-
-## 项目主页 & 文档 / Homepage & Documents
-
-https://matsuridayo.github.io
-
-## 支持的代理协议 / Supported Proxy Protocols
+## Supported Protocols
 
 * SOCKS (4/4a/5)
 * HTTP(S)
@@ -41,25 +22,31 @@ https://matsuridayo.github.io
 * Trojan
 * VLESS
 * AnyTLS/AnyReality
-* Snell 1/2/3/4/5/6
+* Snell 1/2/3/4/5
 * ShadowTLS
 * TUIC
 * Juicity
 * Hysteria 1/2
 * WireGuard
+* AmneziaWG 2.0
 * Trojan-Go (trojan-go-plugin)
-* NaïveProxy (naive-plugin)
+* NaïveProxy
 * Mieru (mieru-plugin)
+* ByeDPI
+* MasterDnsVPN
 
 <details>
-<summary>XHTTP Extra TLS配置示例</summary>
+<summary>XHTTP Extra TLS Configuration Example</summary>
 
 <pre><code class="language-json">
 {
-    "no_grpc_header": false,  // stream-up/one
+	"headers": {
+		"User-Agent": "Mozilla/5.0"
+	},
+	"no_grpc_header": false,
 	"x_padding_bytes": "100-10000",
-	"sc_max_each_post_bytes": 1000000, // packet-up only
-	"sc_min_posts_interval_ms": 30, // packet-up only
+	"sc_max_each_post_bytes": 1000000,
+	"sc_min_posts_interval_ms": 30,
 	"xmux": {
 		"max_concurrency": "16-32",
 		"max_connections": "0-0",
@@ -89,10 +76,13 @@ https://matsuridayo.github.io
 		"mode": "auto",
 		"host": "b.yourdomain.com",
 		"path": "/xhttp",
-        "no_grpc_header": false,  // stream-up/one
-	    "x_padding_bytes": "100-10000",
-	    "sc_max_each_post_bytes": 1000000, // packet-up only
-	    "sc_min_posts_interval_ms": 30, // packet-up only
+		"headers": {
+			"User-Agent": "Mozilla/5.0"
+		},
+		"no_grpc_header": false,
+		"x_padding_bytes": "100-10000",
+		"sc_max_each_post_bytes": 1000000,
+		"sc_min_posts_interval_ms": 30,
 		"xmux": {
 			"max_concurrency": "16-32",
 			"max_connections": "0-0",
@@ -135,14 +125,17 @@ https://matsuridayo.github.io
 </details>
 
 <details>
-<summary>XHTTP Extra Reality配置示例</summary>
+<summary>XHTTP Extra Reality Configuration Example</summary>
 
 <pre><code class="language-json">
 {
-    "no_grpc_header": false,  // stream-up/one
+	"headers": {
+		"User-Agent": "Mozilla/5.0"
+	},
+	"no_grpc_header": false,
 	"x_padding_bytes": "100-10000",
-	"sc_max_each_post_bytes": 1000000, // packet-up only
-	"sc_min_posts_interval_ms": 30, // packet-up only
+	"sc_max_each_post_bytes": 1000000,
+	"sc_min_posts_interval_ms": 30,
 	"xmux": {
 		"max_concurrency": "16-32",
 		"max_connections": "0-0",
@@ -172,10 +165,13 @@ https://matsuridayo.github.io
 		"mode": "auto",
 		"host": "example.com",
 		"path": "/xhttp",
-        "no_grpc_header": false,  // stream-up/one
-	    "x_padding_bytes": "100-10000",
-	    "sc_max_each_post_bytes": 1000000, // packet-up only
-	    "sc_min_posts_interval_ms": 30, // packet-up only
+		"headers": {
+			"User-Agent": "Mozilla/5.0"
+		},
+		"no_grpc_header": false,
+		"x_padding_bytes": "100-10000",
+		"sc_max_each_post_bytes": 1000000,
+		"sc_min_posts_interval_ms": 30,
 		"xmux": {
 			"max_concurrency": "16-32",
 			"max_connections": "0-0",
@@ -221,57 +217,106 @@ https://matsuridayo.github.io
 </code></pre>
 </details>
 
-请到[这里](https://matsuridayo.github.io/nb4a-plugin/)下载插件以获得完整的代理支持.
-
-Please visit [here](https://matsuridayo.github.io/nb4a-plugin/) to download plugins for full proxy
-supports.
-
-## 支持的订阅格式 / Supported Subscription Format
-
-* 一些广泛使用的格式 (如 Shadowsocks, ClashMeta 和 v2rayN)
-* sing-box 出站
-
-仅支持解析出站，即节点。分流规则等信息会被忽略。
+## Supported Subscription Format
 
 * Some widely used formats (like Shadowsocks, ClashMeta and v2rayN)
+* Remnawave (only with Happ / v2RayTun spoof)
 * sing-box outbound
 
 Only resolving outbound, i.e. nodes, is supported. Information such as diversion rules are ignored.
 
-## 捐助 / Donate
+## Building
 
-<details>
+This project is built from several sibling repositories. The expected layout is:
 
-如果这个项目对您有帮助, 可以通过捐赠的方式帮助我们维持这个项目.
+```text
+workspace/
+  NekoBoxForAndroid/
+  sing-box/
+  libneko/
+  net/
+  amneziawg-go/
+  MasterDnsVPN-plus/
+  byedpi/
+```
 
-捐赠满等额 50 USD 可以在「[捐赠榜](https://mtrdnt.pages.dev/donation_list)」显示头像, 如果您未被添加到这里,
-欢迎联系我们补充.
+To get this structure you should clone original repositories first:
 
-Donations of 50 USD or more can display your avatar on
-the [Donation List](https://mtrdnt.pages.dev/donation_list). If you are not added here, please
-contact us to add it.
+```bash
+git clone https://github.com/starifly/NekoBoxForAndroid.git NekoBoxForAndroid
+git clone --branch 1.12.x https://github.com/starifly/sing-box.git sing-box
+git clone https://github.com/masterking32/MasterDnsVPN.git MasterDnsVPN-plus
+```
 
-USDT TRC20
+The patch bundle for those repositories is distributed as files you've applied to those repositories after cloning them (assuming that you did since you're reading this, patch files have everything you need).
 
-`TFVcx36pVLuCWLbWiMdT5KP2PsfQ2SJVEZ`
+After applying the main patches, both `NekoBoxForAndroid/patches` and `sing-box/patches` contain additional patches needed by local dependencies.
 
-</details>
+Patch `amneziawg-go` manually:
+
+```bash
+git clone https://github.com/amnezia-vpn/amneziawg-go.git amneziawg-go
+git -C amneziawg-go checkout {replace with patch target commit from the patch file itself}
+git -C amneziawg-go apply ../sing-box/patches/amneziawg-go/*.patch
+```
+
+Patch `golang.org/x/net` manually:
+
+```bash
+git clone https://go.googlesource.com/net net
+git -C net checkout {replace with patch target commit from the patch file itself}
+git -C net apply ../sing-box/patches/x-slash-net/*.patch
+```
+
+`byedpi`, `sing-box`, and `libneko` are handled by `buildScript/lib/core/get_source.sh` when they are missing; `byedpi` is patched automatically from `NekoBoxForAndroid/patches/byedpi`. Edit `buildScript/lib/core/get_source_env.sh` to point the app to the correct repositories and commits: it's important to have correct 
+commit hashes there or you'll end up with broken build.
+
+Install Android SDK/NDK, Docker or a Docker-compatible Podman setup, and Android Studio's JBR. Then download runtime assets and build the Go core inside the container:
+
+```bash
+cd NekoBoxForAndroid
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export JAVA_HOME=/opt/android-studio/jbr
+
+bash buildScript/lib/assets.sh
+bash buildScript/lib/core.docker.sh
+```
+
+The containerized core build is required because it builds with the patched Go runtime used by this project. The runtime retains Go's standard monotonic timer behavior; Android device/network wake callbacks restore WG/AWG binds and keepalives without periodic background wakeups. Rebuild the image after changing Go versions, the Dockerfile, or a Go runtime patch:
+
+```bash
+bash buildScript/lib/core.docker.sh --rebuild-image
+```
+
+Useful configuration knobs for `core.docker.sh`:
+
+- `SING_BOX_SRC`, `X_NET_SRC`, `LIBNEKO_SRC`, `AMNEZIAWG_GO_SRC`, `MASTERDNSVPN_SRC`, `BYEDPI_SRC`: override sibling source locations.
+- `AAR_OUT_DIR`, `GO_CACHE_DIR`, `GO_MOD_CACHE_DIR`: override core output and Go cache directories.
+- `GO_VERSION`, `BOOTSTRAP_GO_VERSION`, `GO_PATCH_DIR`, `DOCKERFILE`, `PATCHED_GO_ANDROID_IMAGE`: customize the patched Go build image. Runtime patches are applied from `GO_PATCH_DIR` in lexical order.
+- `DOCKER_RUN_EXTRA_ARGS`: append Docker or Podman runtime flags, for example `--network host`.
+
+Finally, build the Android app:
+
+```bash
+JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleOssDebug
+```
+
+For release variants, use the matching Gradle task, for example `assembleFdroidRelease`, and provide signing values through `local.properties` or the `KEYSTORE_PASS`, `ALIAS_NAME`, and `ALIAS_PASS` environment variables.
 
 ## Credits
 
 Core:
 
 - [SagerNet/sing-box](https://github.com/SagerNet/sing-box)
+- [starifly/sing-box](https://github.com/starifly/sing-box)
 
 Android GUI:
 
 - [shadowsocks/shadowsocks-android](https://github.com/shadowsocks/shadowsocks-android)
 - [SagerNet/SagerNet](https://github.com/SagerNet/SagerNet)
+- [MatsuriDayo/NekoBoxForAndroid](https://github.com/MatsuriDayo/NekoBoxForAndroid)
 
 Web Dashboard:
 
-- [Yacd-meta](https://github.com/MetaCubeX/Yacd-meta)
-
-## Contributors
-
-![Contributors](https://contrib.rocks/image?repo=starifly/NekoBoxForAndroid)
+- [metacubexd](https://github.com/MetaCubeX/metacubexd)

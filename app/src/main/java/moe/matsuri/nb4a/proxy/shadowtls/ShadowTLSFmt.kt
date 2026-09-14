@@ -10,6 +10,7 @@ fun buildSingBoxOutboundShadowTLSBean(bean: ShadowTLSBean): SingBoxOptions.Outbo
         server_port = bean.serverPort
         version = bean.version
         password = bean.password
+        proxy_protocol = bean.proxyProtocol.takeIf { it > 0 }
         tls = buildSingBoxOutboundTLS(bean)
     }
 }

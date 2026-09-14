@@ -10,6 +10,7 @@ import org.jetbrains.annotations.NotNull;
 
 import io.nekohasekai.sagernet.fmt.KryoConverters;
 import io.nekohasekai.sagernet.fmt.internal.InternalBean;
+import io.nekohasekai.sagernet.ktx.JsonHashNormalizer;
 import moe.matsuri.nb4a.utils.JavaUtil;
 
 public class ConfigBean extends InternalBean {
@@ -41,6 +42,12 @@ public class ConfigBean extends InternalBean {
     }
 
     @Override
+    protected void normalizeJsonFieldsForHash() {
+        super.normalizeJsonFieldsForHash();
+        config = JsonHashNormalizer.normalizeJsonStringOrRaw(config);
+    }
+
+    @Override
     public String displayName() {
         if (JavaUtil.isNotBlank(name)) {
             return name;
@@ -60,6 +67,12 @@ public class ConfigBean extends InternalBean {
             }
         }
         return type != null && type == 0 ? "sing-box config" : "sing-box outbound";
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("config");
     }
 
     @NotNull

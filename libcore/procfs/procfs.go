@@ -61,7 +61,11 @@ func ResolveSocketByProcSearch(network string, source, _ netip.AddrPort) int32 {
 		return -1
 	}
 
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			return
+		}
+	}()
 
 	reader := bufio.NewReader(file)
 
@@ -106,7 +110,11 @@ func init() {
 		return
 	}
 
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			return
+		}
+	}()
 
 	reader := bufio.NewReader(file)
 

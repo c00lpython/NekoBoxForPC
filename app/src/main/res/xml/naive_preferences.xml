@@ -38,10 +38,28 @@
             app:key="serverProtocol"
             app:title="@string/protocol"
             app:useSimpleSummaryProvider="true" />
+        <moe.matsuri.nb4a.ui.SimpleMenuPreference
+            app:defaultValue=""
+            app:entries="@array/naive_quic_congestion_control_entry"
+            app:entryValues="@array/naive_quic_congestion_control_value"
+            app:icon="@drawable/ic_baseline_speed_24"
+            app:key="quicCongestionControl"
+            app:title="@string/naive_quic_congestion_control"
+            app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:icon="@drawable/ic_baseline_texture_24"
             app:key="serverHeaders"
             app:title="@string/extra_headers"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_grid_3x3_24"
+            app:key="streamReceiveWindow"
+            app:title="@string/naive_stream_receive_window"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_grid_3x3_24"
+            app:key="quicSessionReceiveWindow"
+            app:title="@string/naive_quic_session_receive_window"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:icon="@drawable/ic_action_copyright"
@@ -62,7 +80,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory app:title="sing-box server">
-        <SwitchPreference
+        <moe.matsuri.nb4a.ui.MaterialSwitchPreference
+            app:icon="@drawable/ic_baseline_compare_arrows_24"
             app:key="sUoT"
             app:title="UDP over TCP" />
     </PreferenceCategory>

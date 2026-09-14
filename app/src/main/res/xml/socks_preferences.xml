@@ -39,7 +39,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory app:title="sing-box server">
-        <SwitchPreference
+        <moe.matsuri.nb4a.ui.MaterialSwitchPreference
+            app:icon="@drawable/ic_baseline_compare_arrows_24"
             app:key="sUoT"
             app:title="UDP over TCP" />
     </PreferenceCategory>

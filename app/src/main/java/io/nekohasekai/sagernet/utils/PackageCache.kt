@@ -1,6 +1,5 @@
 package io.nekohasekai.sagernet.utils
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
@@ -36,29 +35,31 @@ object PackageCache {
 
     @SuppressLint("InlinedApi")
     fun reload() {
-        val rawPackageInfo = app.packageManager.getInstalledPackages(
-            PackageManager.MATCH_UNINSTALLED_PACKAGES
-                    or PackageManager.GET_PERMISSIONS
-                    or PackageManager.GET_PROVIDERS
-                    or PackageManager.GET_META_DATA
-        )
+        val packageFlags = PackageManager.MATCH_UNINSTALLED_PACKAGES or
+                PackageManager.GET_PERMISSIONS or
+                PackageManager.GET_PROVIDERS or
+                PackageManager.GET_META_DATA
+        // Some package-manager implementations omit preinstalled apps from the general query.
+        // Merge an explicit system-only query so per-app routing always sees them.
+        val rawPackageInfo = app.packageManager.getInstalledPackages(packageFlags) +
+                app.packageManager.getInstalledPackages(
+                    packageFlags or PackageManager.MATCH_SYSTEM_ONLY
+                )
 
-        installedPackages = rawPackageInfo.filter {
-            when (it.packageName) {
-                "android" -> true
-                else -> it.requestedPermissions?.contains(Manifest.permission.INTERNET) == true
-            }
-        }.associateBy { it.packageName }
+        installedPackages = rawPackageInfo.associateBy { it.packageName }
 
         installedPluginPackages = rawPackageInfo.filter {
             Plugins.isExe(it)
         }.associateBy { it.packageName }
 
-        val installed = app.packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        val installed = app.packageManager.getInstalledApplications(PackageManager.GET_META_DATA) +
+                app.packageManager.getInstalledApplications(
+                    PackageManager.GET_META_DATA or PackageManager.MATCH_SYSTEM_ONLY
+                )
         installedApps = installed.associateBy { it.packageName }
-        packageMap = installed.associate { it.packageName to it.uid }
+        packageMap = installedApps.mapValues { it.value.uid }
         uidMap.clear()
-        for (info in installed) {
+        for (info in installedApps.values) {
             val uid = info.uid
             uidMap.getOrPut(uid) { HashSet() }.add(info.packageName)
         }

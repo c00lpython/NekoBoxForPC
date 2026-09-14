@@ -20,8 +20,11 @@ public class SSHBean extends AbstractBean {
     public Integer authType;
     public String password;
     public String privateKey;
+    public String privateKeyPath;
     public String privateKeyPassphrase;
     public String publicKey;
+    public String hostKeyAlgorithms;
+    public String clientVersion;
 
     @Override
     public void initializeDefaultValues() {
@@ -33,13 +36,16 @@ public class SSHBean extends AbstractBean {
         if (authType == null) authType = AUTH_TYPE_PASSWORD;
         if (password == null) password = "";
         if (privateKey == null) privateKey = "";
+        if (privateKeyPath == null) privateKeyPath = "";
         if (privateKeyPassphrase == null) privateKeyPassphrase = "";
         if (publicKey == null) publicKey = "";
+        if (hostKeyAlgorithms == null) hostKeyAlgorithms = "";
+        if (clientVersion == null) clientVersion = "";
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(0);
+        output.writeInt(1);
         super.serialize(output);
         output.writeString(username);
         output.writeInt(authType);
@@ -55,6 +61,9 @@ public class SSHBean extends AbstractBean {
                 break;
         }
         output.writeString(publicKey);
+        output.writeString(privateKeyPath);
+        output.writeString(hostKeyAlgorithms);
+        output.writeString(clientVersion);
     }
 
     @Override
@@ -75,6 +84,17 @@ public class SSHBean extends AbstractBean {
                 break;
         }
         publicKey = input.readString();
+        if (version >= 1) {
+            privateKeyPath = input.readString();
+            hostKeyAlgorithms = input.readString();
+            clientVersion = input.readString();
+        }
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("ssh");
     }
 
     @NotNull

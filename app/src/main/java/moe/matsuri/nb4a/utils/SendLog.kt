@@ -8,14 +8,35 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
-import io.nekohasekai.sagernet.ktx.use
 import io.nekohasekai.sagernet.utils.CrashHandler
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
 
 object SendLog {
+    val logFile: File
+        get() = File(SagerNet.application.cacheDir, "neko.log")
+
+    fun buildLog(): String = buildString {
+        append(CrashHandler.buildReportHeader())
+        append("Logcat: \n\n")
+
+        try {
+            append(
+                Runtime.getRuntime().exec(arrayOf("logcat", "-d"))
+                    .inputStream.bufferedReader(Charsets.UTF_8)
+                    .use { it.readText() }
+            )
+        } catch (e: IOException) {
+            Logs.w(e)
+            append("Export logcat error: ")
+            append(CrashHandler.formatThrowable(e))
+        }
+
+        append("\n\n")
+        append(getNekoLog(0).toString(Charsets.UTF_8))
+    }
+
     // Create full log and send
     fun sendLog(context: Context, title: String) {
         val logFile = File.createTempFile(
@@ -23,26 +44,7 @@ object SendLog {
             ".log",
             File(app.cacheDir, "log").also { it.mkdirs() })
 
-        var report = CrashHandler.buildReportHeader()
-
-        report += "Logcat: \n\n"
-
-        logFile.writeText(report)
-
-        try {
-            Runtime.getRuntime().exec(arrayOf("logcat", "-d")).inputStream.use(
-                FileOutputStream(
-                    logFile, true
-                )
-            )
-            logFile.appendText("\n")
-        } catch (e: IOException) {
-            Logs.w(e)
-            logFile.appendText("Export logcat error: " + CrashHandler.formatThrowable(e))
-        }
-
-        logFile.appendText("\n")
-        logFile.appendBytes(getNekoLog(0))
+        logFile.writeText(buildLog())
 
         context.startActivity(
             Intent.createChooser(
@@ -60,10 +62,7 @@ object SendLog {
     // Get log bytes from neko.log
     fun getNekoLog(max: Long): ByteArray {
         return try {
-            val file = File(
-                SagerNet.application.cacheDir,
-                "neko.log"
-            )
+            val file = logFile
             val len = file.length()
             val stream = FileInputStream(file)
             if (max in 1 until len) {

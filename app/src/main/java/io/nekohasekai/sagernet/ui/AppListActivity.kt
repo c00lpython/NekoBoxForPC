@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView
 import io.nekohasekai.sagernet.BuildConfig
+import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
@@ -43,6 +44,9 @@ import kotlin.coroutines.coroutineContext
 
 class AppListActivity : ThemedActivity() {
     companion object {
+        const val EXTRA_PACKAGE_LIST_KEY = "package_list_key"
+        const val EXTRA_TITLE = "title"
+
         private const val SWITCH = "switch"
 
         private val cachedApps
@@ -88,7 +92,7 @@ class AppListActivity : ThemedActivity() {
 
         override fun onClick(v: View?) {
             if (isProxiedApp(item)) proxiedUids.delete(item.uid) else proxiedUids[item.uid] = true
-            DataStore.routePackages = apps.filter { isProxiedApp(it) }
+            packageList = apps.filter { isProxiedApp(it) }
                 .joinToString("\n") { it.packageName }
             appsAdapter.notifyItemRangeChanged(0, appsAdapter.itemCount, SWITCH)
         }
@@ -158,8 +162,22 @@ class AppListActivity : ThemedActivity() {
     private var loader: Job? = null
     private var apps = emptyList<ProxiedApp>()
     private val appsAdapter = AppsAdapter()
+    private val packageListKey by lazy {
+        intent.getStringExtra(EXTRA_PACKAGE_LIST_KEY) ?: Key.ROUTE_PACKAGES
+    }
+    private var packageList: String
+        get() = when (packageListKey) {
+            Key.ADBLOCK_INCLUDED_PACKAGES -> DataStore.adblockIncludedPackages
+            else -> DataStore.routePackages
+        }
+        set(value) {
+            when (packageListKey) {
+                Key.ADBLOCK_INCLUDED_PACKAGES -> DataStore.adblockIncludedPackages = value
+                else -> DataStore.routePackages = value
+            }
+        }
 
-    private fun initProxiedUids(str: String = DataStore.routePackages) {
+    private fun initProxiedUids(str: String = packageList) {
         proxiedUids.clear()
         val apps = cachedApps
         for (line in str.lineSequence()) {
@@ -204,7 +222,7 @@ class AppListActivity : ThemedActivity() {
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.apply {
-            setTitle(R.string.select_apps)
+            setTitle(intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.select_apps))
             setDisplayHomeAsUpEnabled(true)
             setHomeAsUpIndicator(R.drawable.ic_navigation_close)
         }
@@ -247,7 +265,7 @@ class AppListActivity : ThemedActivity() {
                             proxiedUids[app.uid] = true
                         }
                     }
-                    DataStore.routePackages = apps.filter { isProxiedApp(it) }
+                    packageList = apps.filter { isProxiedApp(it) }
                         .joinToString("\n") { it.packageName }
                     apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
                     onMainDispatcher {
@@ -261,7 +279,7 @@ class AppListActivity : ThemedActivity() {
             R.id.action_clear_selections -> {
                 runOnDefaultDispatcher {
                     proxiedUids.clear()
-                    DataStore.routePackages = ""
+                    packageList = ""
                     apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
                     onMainDispatcher {
                         appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
@@ -270,7 +288,7 @@ class AppListActivity : ThemedActivity() {
             }
 
             R.id.action_export_clipboard -> {
-                val success = SagerNet.trySetPrimaryClip("false\n${DataStore.routePackages}")
+                val success = SagerNet.trySetPrimaryClip("false\n$packageList")
                 Snackbar.make(
                     binding.list,
                     if (success) R.string.action_export_msg else R.string.action_export_err,
@@ -286,7 +304,7 @@ class AppListActivity : ThemedActivity() {
                     val i = proxiedAppString.indexOf('\n')
                     try {
                         val apps = if (i < 0) "" else proxiedAppString.substring(i + 1)
-                        DataStore.routePackages = apps
+                        packageList = apps
                         Snackbar.make(
                             binding.list, R.string.action_import_msg, Snackbar.LENGTH_LONG
                         ).show()

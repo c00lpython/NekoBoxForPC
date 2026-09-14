@@ -49,6 +49,12 @@ public class TrojanBean extends StandardV2RayBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("trojan");
+    }
+
+    @NotNull
+    @Override
     public TrojanBean clone() {
         return KryoConverters.deserialize(new TrojanBean(), KryoConverters.serialize(this));
     }

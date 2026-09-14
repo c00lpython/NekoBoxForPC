@@ -25,6 +25,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import moe.matsuri.nb4a.ui.showMaterialEditTextPreferenceDialog
 
 class WebDAVSettingsActivity : ThemedActivity() {
     
@@ -117,6 +118,11 @@ class WebDAVSettingsActivity : ThemedActivity() {
                 }
                 true
             }
+        }
+
+        override fun onDisplayPreferenceDialog(preference: Preference) {
+            if (showMaterialEditTextPreferenceDialog(preference)) return
+            super.onDisplayPreferenceDialog(preference)
         }
 
         private fun testWebDAV() {

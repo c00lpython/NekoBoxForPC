@@ -16,7 +16,7 @@ package stun
 
 // Default server address and client name.
 const (
-	DefaultServerAddr   = "stun.ekiga.net:3478"
+	DefaultServerAddr   = "stunserver2025.stunprotocol.org:3478"
 	DefaultSoftwareName = "StunClient"
 )
 
@@ -28,12 +28,15 @@ const (
 // NATType is the type of NAT described by int.
 type NATType int
 
-// NAT behavior type
+// BehaviorType is NAT behavior type.
 type BehaviorType int
 
+// NATBehavior describes NAT mapping and filtering behavior. NoTranslation is
+// true when the mapped transport address matches the client's local address.
 type NATBehavior struct {
 	MappingType   BehaviorType
 	FilteringType BehaviorType
+	NoTranslation bool
 }
 
 // NAT types.
@@ -54,6 +57,7 @@ const (
 	NATSymmetricUDPFirewall = SymmetricUDPFirewall
 )
 
+// Behavior types.
 const (
 	BehaviorTypeUnknown BehaviorType = iota
 	BehaviorTypeEndpoint
@@ -68,8 +72,8 @@ var natNormalTypeStr map[NATBehavior]string
 func init() {
 	natStr = map[NATType]string{
 		NATError:             "Test failed",
-		NATUnknown:           "Unexpected response from the STUN server",
-		NATBlocked:           "UDP is blocked",
+		NATUnknown:           "NAT type unavailable",
+		NATBlocked:           "UDP blocked or STUN server unreachable",
 		NATFull:              "Full cone NAT",
 		NATSymmetric:         "Symmetric NAT",
 		NATRestricted:        "Restricted NAT",
@@ -86,10 +90,10 @@ func init() {
 
 	// Defined in RFC 3489
 	natNormalTypeStr = map[NATBehavior]string{
-		NATBehavior{BehaviorTypeEndpoint, BehaviorTypeEndpoint}:       "Full cone NAT",
-		NATBehavior{BehaviorTypeEndpoint, BehaviorTypeAddr}:           "Restricted cone NAT",
-		NATBehavior{BehaviorTypeEndpoint, BehaviorTypeAddrAndPort}:    "Port Restricted cone NAT",
-		NATBehavior{BehaviorTypeAddrAndPort, BehaviorTypeAddrAndPort}: "Symmetric NAT",
+		{MappingType: BehaviorTypeEndpoint, FilteringType: BehaviorTypeEndpoint}:       "Full cone NAT",
+		{MappingType: BehaviorTypeEndpoint, FilteringType: BehaviorTypeAddr}:           "Restricted cone NAT",
+		{MappingType: BehaviorTypeEndpoint, FilteringType: BehaviorTypeAddrAndPort}:    "Port Restricted cone NAT",
+		{MappingType: BehaviorTypeAddrAndPort, FilteringType: BehaviorTypeAddrAndPort}: "Symmetric NAT",
 	}
 }
 
@@ -107,34 +111,21 @@ func (natBhType BehaviorType) String() string {
 	return "Unknown"
 }
 
+// NormalType returns the normal NAT type of the NatBehavior.
 func (natBehavior NATBehavior) NormalType() string {
+	if natBehavior.NoTranslation {
+		switch natBehavior.FilteringType {
+		case BehaviorTypeAddr, BehaviorTypeAddrAndPort:
+			return SymmetricUDPFirewall.String()
+		}
+		return "Open Internet (no NAT)"
+	}
 	if s, ok := natNormalTypeStr[natBehavior]; ok {
 		return s
 	}
 	return "Undefined"
 }
 
-const (
-	errorTryAlternate                 = 300
-	errorBadRequest                   = 400
-	errorUnauthorized                 = 401
-	errorUnassigned402                = 402
-	errorForbidden                    = 403
-	errorUnknownAttribute             = 420
-	errorAllocationMismatch           = 437
-	errorStaleNonce                   = 438
-	errorUnassigned439                = 439
-	errorAddressFamilyNotSupported    = 440
-	errorWrongCredentials             = 441
-	errorUnsupportedTransportProtocol = 442
-	errorPeerAddressFamilyMismatch    = 443
-	errorConnectionAlreadyExists      = 446
-	errorConnectionTimeoutOrFailure   = 447
-	errorAllocationQuotaReached       = 486
-	errorRoleConflict                 = 487
-	errorServerError                  = 500
-	errorInsufficientCapacity         = 508
-)
 const (
 	attributeFamilyIPv4 = 0x01
 	attributeFamilyIPV6 = 0x02

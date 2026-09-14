@@ -106,6 +106,12 @@ public class ShadowsocksBean extends AbstractBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("shadowsocks");
+    }
+
+    @NotNull
+    @Override
     public ShadowsocksBean clone() {
         return KryoConverters.deserialize(new ShadowsocksBean(), KryoConverters.serialize(this));
     }

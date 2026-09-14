@@ -148,6 +148,12 @@ public class TrojanGoBean extends AbstractBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("trojan-go");
+    }
+
+    @NotNull
+    @Override
     public TrojanGoBean clone() {
         return KryoConverters.deserialize(new TrojanGoBean(), KryoConverters.serialize(this));
     }

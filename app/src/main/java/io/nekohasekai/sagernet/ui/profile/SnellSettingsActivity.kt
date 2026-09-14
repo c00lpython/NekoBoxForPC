@@ -130,5 +130,4 @@ class SnellSettingsActivity : ProfileSettingsActivity<SnellBean>() {
             modePref.value = "default"
         }
     }
-
 }

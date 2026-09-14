@@ -16,6 +16,7 @@ public class WireGuardBean extends AbstractBean {
     public String privateKey;
     public String peerPublicKey;
     public String peerPreSharedKey;
+    public Integer peerPersistentKeepalive;
     public Integer mtu;
     public String reserved;
 
@@ -26,18 +27,20 @@ public class WireGuardBean extends AbstractBean {
         if (privateKey == null) privateKey = "";
         if (peerPublicKey == null) peerPublicKey = "";
         if (peerPreSharedKey == null) peerPreSharedKey = "";
-        if (mtu == null) mtu = 1420;
+        if (peerPersistentKeepalive == null) peerPersistentKeepalive = 0;
+        if (mtu == null) mtu = 1280;
         if (reserved == null) reserved = "";
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(2);
+        output.writeInt(3);
         super.serialize(output);
         output.writeString(localAddress);
         output.writeString(privateKey);
         output.writeString(peerPublicKey);
         output.writeString(peerPreSharedKey);
+        output.writeInt(peerPersistentKeepalive);
         output.writeInt(mtu);
         output.writeString(reserved);
     }
@@ -50,13 +53,24 @@ public class WireGuardBean extends AbstractBean {
         privateKey = input.readString();
         peerPublicKey = input.readString();
         peerPreSharedKey = input.readString();
+        if (version >= 3) {
+            peerPersistentKeepalive = input.readInt();
+        }
         mtu = input.readInt();
-        reserved = input.readString();
+        if (version >= 2) {
+            reserved = input.readString();
+        }
     }
 
     @Override
     public boolean canTCPing() {
         return false;
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("wireguard");
     }
 
     @NotNull

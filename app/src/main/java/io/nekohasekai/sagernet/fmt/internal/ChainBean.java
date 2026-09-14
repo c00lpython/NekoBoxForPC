@@ -61,6 +61,12 @@ public class ChainBean extends InternalBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("chain");
+    }
+
+    @NotNull
+    @Override
     public ChainBean clone() {
         return KryoConverters.deserialize(new ChainBean(), KryoConverters.serialize(this));
     }

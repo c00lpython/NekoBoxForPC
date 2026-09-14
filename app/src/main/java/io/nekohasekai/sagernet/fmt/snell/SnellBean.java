@@ -15,12 +15,12 @@ public class SnellBean extends AbstractBean {
     public String psk;
     public String userKey;
     public Integer version;      // 1-6
-    public String obfsMode;      // "", "http", "tls"
+    public String obfsMode;
     public String obfsHost;
     public String mode;          // v6: "", "default", "unshaped", "unsafe-raw"
     public Boolean quicProxyMode; // v6: legacy v5 QUIC Proxy compatibility
     public Boolean reuse;
-    public String network;       // "tcp", "udp", "tcp,udp"
+    public String network;
 
     @Override
     public void initializeDefaultValues() {
@@ -72,6 +72,12 @@ public class SnellBean extends AbstractBean {
         if (version >= 4) {
             quicProxyMode = input.readBoolean();
         }
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("snell");
     }
 
     @NotNull

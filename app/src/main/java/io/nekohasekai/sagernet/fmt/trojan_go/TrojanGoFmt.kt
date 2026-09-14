@@ -3,8 +3,12 @@ package io.nekohasekai.sagernet.fmt.trojan_go
 import io.nekohasekai.sagernet.IPv6Mode
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.fmt.LOCALHOST
+import io.nekohasekai.sagernet.fmt.applySharedTLSOptions
 import io.nekohasekai.sagernet.ktx.*
-import moe.matsuri.nb4a.Protocols
+import moe.matsuri.nb4a.SingBoxOptions.OutboundTLSOptions
+import moe.matsuri.nb4a.SingBoxOptions.Outbound_TrojanOptions
+import moe.matsuri.nb4a.SingBoxOptions.V2RayTransportOptions
+import moe.matsuri.nb4a.SingBoxOptions.V2RayTransportOptions_WebsocketOptions
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -129,6 +133,40 @@ fun TrojanGoBean.buildTrojanGoConfig(port: Int): String {
             })
         }
     }.toStringPretty()
+}
+
+fun TrojanGoBean.canUseSingBox(): Boolean {
+    if (encryption.isNotBlank() && encryption != "none") return false
+    return type == "original" || type == "ws"
+}
+
+fun buildSingBoxOutboundTrojanGoBean(bean: TrojanGoBean): Outbound_TrojanOptions {
+    return Outbound_TrojanOptions().apply {
+        type = "trojan"
+        server = bean.serverAddress
+        server_port = bean.serverPort
+        password = bean.password
+        tls = OutboundTLSOptions().apply {
+            enabled = true
+            insecure = bean.allowInsecure || DataStore.globalAllowInsecure
+            if (bean.sni.isNotBlank()) server_name = bean.sni
+            applySharedTLSOptions(bean)
+        }
+        transport = buildSingBoxOutboundTrojanGoTransport(bean)
+    }
+}
+
+private fun buildSingBoxOutboundTrojanGoTransport(bean: TrojanGoBean): V2RayTransportOptions? {
+    return when (bean.type) {
+        "ws" -> V2RayTransportOptions_WebsocketOptions().apply {
+            type = "ws"
+            path = bean.path.takeIf { it.isNotBlank() } ?: "/"
+            if (bean.host.isNotBlank()) {
+                headers = mutableMapOf("Host" to bean.host)
+            }
+        }
+        else -> null
+    }
 }
 
 fun JSONObject.parseTrojanGo(): TrojanGoBean {

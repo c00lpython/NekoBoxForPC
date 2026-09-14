@@ -2,6 +2,7 @@ package io.nekohasekai.sagernet.group
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
 import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
@@ -35,8 +36,10 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
         duplicate: List<String>,
         byUser: Boolean
     ) {
+        if (!byUser) return
+
         if (changed == 0 && duplicate.isEmpty()) {
-            if (byUser) context.snackbar(
+            context.snackbar(
                     context.getString(
                             R.string.group_no_difference, group.displayName()
                     )
@@ -67,6 +70,8 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
                 )
             }
 
+            if (!DataStore.enableGroupUpdateDialog) return
+
             onMainDispatcher {
                 delay(1000L)
 
@@ -86,6 +91,7 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
             context.snackbar(message).show()
         }
     }
+
 
     override suspend fun alert(message: String) {
         return suspendCoroutine {

@@ -1,19 +1,20 @@
 package io.nekohasekai.sagernet.bg.proto
 
 import android.os.SystemClock
+import io.nekohasekai.sagernet.Param
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.AbstractInstance
 import io.nekohasekai.sagernet.bg.GuardedProcessPool
+import io.nekohasekai.sagernet.bg.calculateLibcoreMemoryLimit
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.fmt.ConfigBuildResult
 import io.nekohasekai.sagernet.fmt.buildConfig
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.hysteria.buildHysteria1Config
-import io.nekohasekai.sagernet.fmt.mieru.MieruBean
-import io.nekohasekai.sagernet.fmt.mieru.buildMieruConfig
-import io.nekohasekai.sagernet.fmt.naive.NaiveBean
-import io.nekohasekai.sagernet.fmt.naive.buildNaiveConfig
+import io.nekohasekai.sagernet.fmt.masque.MasqueBean
+import io.nekohasekai.sagernet.fmt.masque.applyConfigJson
 import io.nekohasekai.sagernet.fmt.trojan_go.TrojanGoBean
 import io.nekohasekai.sagernet.fmt.trojan_go.buildTrojanGoConfig
 import io.nekohasekai.sagernet.ktx.*
@@ -24,10 +25,16 @@ import libcore.Libcore
 import moe.matsuri.nb4a.net.LocalResolverImpl
 import java.io.File
 
-abstract class BoxInstance(
-    val profile: ProxyEntity
-) : AbstractInstance {
+internal fun ConfigBuildResult.normalizeConfig() =
+    Libcore.normalizeConfig(config).also { normalizeResult ->
+        if (normalizeResult.result.isNotEmpty()) {
+            config = normalizeResult.result
+        }
+    }
 
+abstract class BoxInstance(
+    val profile: ProxyEntity,
+) : AbstractInstance {
     lateinit var config: ConfigBuildResult
     lateinit var box: BoxInstance
 
@@ -36,25 +43,77 @@ abstract class BoxInstance(
     val externalInstances = hashMapOf<Int, AbstractInstance>()
     open lateinit var processes: GuardedProcessPool
     private var cacheFiles = ArrayList<File>()
-    fun isInitialized(): Boolean {
-        return ::config.isInitialized && ::box.isInitialized
-    }
+    protected open val syncMasqueCache = true
+    var configNormalizationViolations: List<String> = emptyList()
+        private set
 
-    protected fun initPlugin(name: String): PluginManager.InitResult {
-        return pluginPath.getOrPut(name) { PluginManager.init(name)!! }
-    }
+    fun isInitialized(): Boolean = ::config.isInitialized && ::box.isInitialized
+
+    protected fun initPlugin(name: String): PluginManager.InitResult = pluginPath.getOrPut(name) { PluginManager.init(name)!! }
 
     protected open fun buildConfig() {
         config = buildConfig(profile)
-        DataStore.mixedInboundAuthed = DataStore.mixedInboundHasAuth
     }
 
     protected open suspend fun loadConfig() {
-        box = Libcore.newSingBoxInstance(config.config, LocalResolverImpl)
+        val normalizeResult = config.normalizeConfig()
+        if (normalizeResult.result.isNotEmpty()) {
+            configNormalizationViolations =
+                List(normalizeResult.violationCount) { index ->
+                    normalizeResult.getViolation(index)
+                }
+        }
+        box = if (config.routingAssetsPath != null && config.routingCachePath != null) {
+            Libcore.newSingBoxInstanceWithPaths(
+                config.config,
+                LocalResolverImpl,
+                config.routingAssetsPath,
+                config.routingCachePath,
+            )
+        } else {
+            Libcore.newSingBoxInstance(config.config, LocalResolverImpl)
+        }
+    }
+
+    suspend fun syncMasqueConfigFromCache(
+        disableRecreate: Boolean,
+        respectRecreate: Boolean,
+    ): Boolean {
+        if (!syncMasqueCache) return false
+        val bean = profile.requireBean() as? MasqueBean ?: return false
+        if (respectRecreate && bean.profileRecreate == true) return false
+        if (!::config.isInitialized) return false
+        val tag = config.profileTagMap[profile.id].orEmpty()
+        if (tag.isBlank()) return false
+        val configJson =
+            runCatching {
+                Libcore.loadMASQUEConfigFromCache(tag, config.singBoxCachePath)
+            }.onFailure {
+                Logs.w(it)
+            }.getOrNull()
+                .orEmpty()
+        if (configJson.isBlank()) return false
+        var changed =
+            runCatching {
+                bean.applyConfigJson(configJson)
+            }.onFailure {
+                Logs.w(it)
+            }.getOrDefault(false)
+        if (disableRecreate && bean.profileRecreate == true) {
+            bean.profileRecreate = false
+            changed = true
+        }
+        if (changed) {
+            ProfileManager.updateProfile(profile)
+        }
+        return changed
     }
 
     open suspend fun init() {
         buildConfig()
+        if (syncMasqueConfigFromCache(disableRecreate = false, respectRecreate = true)) {
+            buildConfig()
+        }
         for ((chain) in config.externalIndex) {
             chain.entries.forEachIndexed { index, (port, profile) ->
                 when (val bean = profile.requireBean()) {
@@ -63,26 +122,18 @@ abstract class BoxInstance(
                         pluginConfigs[port] = profile.type to bean.buildTrojanGoConfig(port)
                     }
 
-                    is MieruBean -> {
-                        initPlugin("mieru-plugin")
-                        pluginConfigs[port] = profile.type to bean.buildMieruConfig(port)
-                    }
-
-                    is NaiveBean -> {
-                        initPlugin("naive-plugin")
-                        pluginConfigs[port] = profile.type to bean.buildNaiveConfig(port)
-                    }
-
                     is HysteriaBean -> {
                         initPlugin("hysteria-plugin")
-                        pluginConfigs[port] = profile.type to bean.buildHysteria1Config(port) {
-                            File(
-                                app.cacheDir, "hysteria_" + SystemClock.elapsedRealtime() + ".ca"
-                            ).apply {
-                                parentFile?.mkdirs()
-                                cacheFiles.add(this)
+                        pluginConfigs[port] = profile.type to
+                            bean.buildHysteria1Config(port) {
+                                File(
+                                    app.cacheDir,
+                                    "hysteria_" + SystemClock.elapsedRealtime() + ".ca",
+                                ).apply {
+                                    parentFile?.mkdirs()
+                                    cacheFiles.add(this)
+                                }
                             }
-                        }
                     }
                 }
             }
@@ -107,88 +158,46 @@ abstract class BoxInstance(
                     }
 
                     bean is TrojanGoBean -> {
-                        val configFile = File(
-                            cacheDir, "trojan_go_" + SystemClock.elapsedRealtime() + ".json"
-                        )
+                        val configFile =
+                            File(
+                                cacheDir,
+                                "trojan_go_" + SystemClock.elapsedRealtime() + ".json",
+                            )
                         configFile.parentFile?.mkdirs()
                         configFile.writeText(config)
                         cacheFiles.add(configFile)
 
-                        val commands = mutableListOf(
-                            initPlugin("trojan-go-plugin").path, "-config", configFile.absolutePath
-                        )
+                        val commands =
+                            mutableListOf(
+                                initPlugin("trojan-go-plugin").path,
+                                "-config",
+                                configFile.absolutePath,
+                            )
 
                         processes.start(commands)
                     }
 
-                    bean is MieruBean -> {
-                        val configFile = File(
-                            cacheDir, "mieru_" + SystemClock.elapsedRealtime() + ".json"
-                        )
-
-                        configFile.parentFile?.mkdirs()
-                        configFile.writeText(config)
-                        cacheFiles.add(configFile)
-
-                        val envMap = mutableMapOf<String, String>()
-                        envMap["MIERU_CONFIG_JSON_FILE"] = configFile.absolutePath
-                        envMap["MIERU_PROTECT_PATH"] = "protect_path"
-
-                        val commands = mutableListOf(
-                            initPlugin("mieru-plugin").path, "run",
-                        )
-
-                        processes.start(commands, envMap)
-                    }
-
-                    bean is NaiveBean -> {
-                        val configFile = File(
-                            cacheDir, "naive_" + SystemClock.elapsedRealtime() + ".json"
-                        )
-
-                        configFile.parentFile?.mkdirs()
-                        configFile.writeText(config)
-                        cacheFiles.add(configFile)
-
-                        val envMap = mutableMapOf<String, String>()
-
-                        if (bean.certificates.isNotBlank()) {
-                            val certFile = File(
-                                cacheDir, "naive_" + SystemClock.elapsedRealtime() + ".crt"
+                    bean is HysteriaBean -> {
+                        val configFile =
+                            File(
+                                cacheDir,
+                                "hysteria_" + SystemClock.elapsedRealtime() + ".json",
                             )
 
-                            certFile.parentFile?.mkdirs()
-                            certFile.writeText(bean.certificates)
-                            cacheFiles.add(certFile)
-
-                            envMap["SSL_CERT_FILE"] = certFile.absolutePath
-                        }
-
-                        val commands = mutableListOf(
-                            initPlugin("naive-plugin").path, configFile.absolutePath
-                        )
-
-                        processes.start(commands, envMap)
-                    }
-
-                    bean is HysteriaBean -> {
-                        val configFile = File(
-                            cacheDir, "hysteria_" + SystemClock.elapsedRealtime() + ".json"
-                        )
-
                         configFile.parentFile?.mkdirs()
                         configFile.writeText(config)
                         cacheFiles.add(configFile)
 
-                        val commands = mutableListOf(
-                            initPlugin("hysteria-plugin").path,
-                            "--no-check",
-                            "--config",
-                            configFile.absolutePath,
-                            "--log-level",
-                            if (DataStore.logLevel > 0) "trace" else "warn",
-                            "client"
-                        )
+                        val commands =
+                            mutableListOf(
+                                initPlugin("hysteria-plugin").path,
+                                "--no-check",
+                                "--config",
+                                configFile.absolutePath,
+                                "--log-level",
+                                if (DataStore.logLevel > 0) "trace" else "warn",
+                                "client",
+                            )
 
                         if (bean.protocol == HysteriaBean.PROTOCOL_FAKETCP) {
                             commands.addAll(0, listOf("su", "-c"))
@@ -200,24 +209,43 @@ abstract class BoxInstance(
             }
         }
 
+        Libcore.enableMemoryLimit(calculateLibcoreMemoryLimit(DataStore.memoryLimit))
         box.start()
     }
 
     @Suppress("EXPERIMENTAL_API_USAGE")
-    override fun close() {
+    open fun close(timeoutMillis: Long) {
+        runBlocking {
+            syncMasqueConfigFromCache(disableRecreate = true, respectRecreate = false)
+        }
         for (instance in externalInstances.values) {
             runCatching {
                 instance.close()
             }
         }
 
-        cacheFiles.removeAll { it.delete(); true }
+        cacheFiles.removeAll {
+            it.delete()
+            true
+        }
 
-        if (::processes.isInitialized) processes.close(GlobalScope + Dispatchers.IO)
+        if (::processes.isInitialized) {
+            runBlocking {
+                processes.closeAndJoin()
+            }
+        }
 
         if (::box.isInitialized) {
-            box.close()
+            try {
+                box.closeTimeout(timeoutMillis)
+            } catch (e: Exception) {
+                Logs.w(e)
+                throw e
+            }
         }
     }
 
+    override fun close() {
+        close(60_000L)
+    }
 }

@@ -4,9 +4,15 @@ import android.database.sqlite.SQLiteCantOpenDatabaseException
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.aidl.TrafficData
 import io.nekohasekai.sagernet.fmt.AbstractBean
+import io.nekohasekai.sagernet.fmt.masterdns.deleteMasterDnsVPNProfileCache
+import io.nekohasekai.sagernet.fmt.tailscale.deleteTailscaleProfileState
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
+import io.nekohasekai.sagernet.utils.ProfileCountryResolver
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.io.IOException
 import java.sql.SQLException
 import java.util.*
@@ -73,12 +79,37 @@ object ProfileManager {
     }
 
     suspend fun createProfile(groupId: Long, bean: AbstractBean): ProxyEntity {
+        val profile = createProfileWithoutDomainLookup(groupId, bean)
+        ProfileCountryResolver.resolveAndUpdateDomain(profile.id)
+        return getProfile(profile.id) ?: profile
+    }
+
+    suspend fun createProfiles(groupId: Long, beans: List<AbstractBean>): List<ProxyEntity> {
+        val profiles = beans.map { createProfileWithoutDomainLookup(groupId, it) }
+        val domainProfiles = ProfileCountryResolver.domainLookupIndexes(
+            profiles.map { it.requireBean().serverAddress }
+        ).map(profiles::get)
+        coroutineScope {
+            domainProfiles.chunked(5).forEach { chunk ->
+                chunk.map { profile ->
+                    async { ProfileCountryResolver.resolveAndUpdateDomain(profile.id) }
+                }.awaitAll()
+            }
+        }
+        return profiles.map { getProfile(it.id) ?: it }
+    }
+
+    private suspend fun createProfileWithoutDomainLookup(
+        groupId: Long,
+        bean: AbstractBean,
+    ): ProxyEntity {
         bean.applyDefaultValues()
 
         val profile = ProxyEntity(groupId = groupId).apply {
             id = 0
             putBean(bean)
             userOrder = SagerDatabase.proxyDao.nextOrder(groupId) ?: 1
+            ProfileCountryResolver.initialize(this)
         }
         profile.id = SagerDatabase.proxyDao.addProxy(profile)
         iterator { onAdd(profile) }
@@ -88,6 +119,19 @@ object ProfileManager {
     suspend fun updateProfile(profile: ProxyEntity) {
         SagerDatabase.proxyDao.updateProxy(profile)
         iterator { onUpdated(profile, false) }
+    }
+
+    suspend fun updateEditedProfile(profile: ProxyEntity) {
+        val previous = getProfile(profile.id)
+        val previousBean = previous?.requireBean()
+        val bean = profile.requireBean()
+        val endpointChanged = previousBean == null ||
+            previousBean.name != bean.name ||
+            previousBean.serverAddress != bean.serverAddress ||
+            previousBean.serverPort != bean.serverPort
+        if (endpointChanged) ProfileCountryResolver.initialize(profile)
+        updateProfile(profile)
+        if (endpointChanged) ProfileCountryResolver.resolveAndUpdateDomain(profile.id)
     }
 
     suspend fun updateProfile(profiles: List<ProxyEntity>) {
@@ -108,14 +152,25 @@ object ProfileManager {
     }
 
     suspend fun deleteProfile2(groupId: Long, profileId: Long) {
+        val profile = getProfile(profileId)
         if (SagerDatabase.proxyDao.deleteById(profileId) == 0) return
+        if (profile?.masterDnsVPNBean != null) {
+            deleteMasterDnsVPNProfileCache(profileId)
+        }
+        if (profile?.tailscaleBean != null) deleteTailscaleProfileState(profileId)
         if (DataStore.selectedProxy == profileId) {
             DataStore.selectedProxy = 0L
         }
+        GroupManager.postProfileCountChanged(groupId)
     }
 
     suspend fun deleteProfile(groupId: Long, profileId: Long) {
+        val profile = getProfile(profileId)
         if (SagerDatabase.proxyDao.deleteById(profileId) == 0) return
+        if (profile?.masterDnsVPNBean != null) {
+            deleteMasterDnsVPNProfileCache(profileId)
+        }
+        if (profile?.tailscaleBean != null) deleteTailscaleProfileState(profileId)
         if (DataStore.selectedProxy == profileId) {
             DataStore.selectedProxy = 0L
         }
@@ -149,6 +204,100 @@ object ProfileManager {
         }
     }
 
+    suspend fun transferProfiles(
+        profileIds: List<Long>,
+        targetGroupId: Long,
+        operation: ProfileTransferOperation,
+    ): ProfileTransferResult {
+        if (profileIds.isEmpty()) {
+            return ProfileTransferResult(0, 0, emptySet())
+        }
+
+        val changedProfiles = mutableListOf<ProxyEntity>()
+        val sourceGroupIds = linkedSetOf<Long>()
+        var skippedCount = 0
+
+        SagerDatabase.instance.runInTransaction {
+            val target = SagerDatabase.groupDao.getById(targetGroupId)
+            if (target?.type != io.nekohasekai.sagernet.GroupType.BASIC) {
+                throw ProfileTransferTargetUnavailableException()
+            }
+
+            val profilesById = SagerDatabase.proxyDao.getEntities(profileIds).associateBy { it.id }
+            val profiles = profileIds.mapNotNull(profilesById::get)
+            skippedCount += profileIds.size - profiles.size
+            var targetOrder = SagerDatabase.proxyDao.nextOrder(targetGroupId) ?: 1L
+
+            when (operation) {
+                ProfileTransferOperation.COPY -> {
+                    profiles.forEach { source ->
+                        val copy = ProfileTransferPolicy.copyForTarget(
+                            source,
+                            targetGroupId,
+                            targetOrder++,
+                        )
+                        copy.id = SagerDatabase.proxyDao.addProxy(copy)
+                        changedProfiles.add(copy)
+                    }
+                }
+
+                ProfileTransferOperation.MOVE -> {
+                    profiles.forEach { source ->
+                        val moved = ProfileTransferPolicy.moveForTarget(
+                            source,
+                            targetGroupId,
+                            targetOrder,
+                        )
+                        if (moved == null) {
+                            skippedCount++
+                        } else {
+                            targetOrder++
+                            sourceGroupIds.add(source.groupId)
+                            changedProfiles.add(moved)
+                        }
+                    }
+                    if (changedProfiles.isNotEmpty()) {
+                        SagerDatabase.proxyDao.updateProxy(changedProfiles)
+                    }
+                    sourceGroupIds.forEach { sourceGroupId ->
+                        val remaining = SagerDatabase.proxyDao.getByGroup(sourceGroupId)
+                        val reordered = remaining.mapIndexedNotNull { index, profile ->
+                            val newOrder = (index + 1).toLong()
+                            profile.takeIf { it.userOrder != newOrder }?.copy(userOrder = newOrder)
+                        }
+                        if (reordered.isNotEmpty()) {
+                            SagerDatabase.proxyDao.updateProxy(reordered)
+                        }
+                    }
+                }
+            }
+        }
+
+        when (operation) {
+            ProfileTransferOperation.COPY -> {
+                changedProfiles.forEach { profile ->
+                    iterator { onAdd(profile) }
+                }
+            }
+
+            ProfileTransferOperation.MOVE -> {
+                changedProfiles.forEach { profile ->
+                    iterator { onUpdated(profile, false) }
+                }
+                (sourceGroupIds + targetGroupId).forEach { groupId ->
+                    GroupManager.postUpdate(groupId)
+                }
+            }
+        }
+
+        val affectedGroupIds = when {
+            changedProfiles.isEmpty() -> emptySet()
+            operation == ProfileTransferOperation.COPY -> setOf(targetGroupId)
+            else -> sourceGroupIds + targetGroupId
+        }
+        return ProfileTransferResult(changedProfiles.size, skippedCount, affectedGroupIds)
+    }
+
     // postUpdate: post to listeners, don't change the DB
 
     suspend fun postUpdate(profileId: Long, noTraffic: Boolean = false) {
@@ -173,6 +322,39 @@ object ProfileManager {
         return rule
     }
 
+    suspend fun duplicateRuleAfter(rule: RuleEntity): RuleEntity {
+        lateinit var duplicate: RuleEntity
+        SagerDatabase.instance.runInTransaction {
+            val rulesDao = SagerDatabase.rulesDao
+            val rules = rulesDao.allRules().toMutableList()
+            val sourceIndex = rules.indexOfFirst { it.id == rule.id }
+            if (sourceIndex == -1) {
+                duplicate = rule.copy(id = 0L, userOrder = rulesDao.nextOrder() ?: 1)
+                duplicate.id = rulesDao.createRule(duplicate)
+                return@runInTransaction
+            }
+
+            duplicate = rules[sourceIndex].copy(id = 0L, userOrder = 0L)
+            rules.add(sourceIndex + 1, duplicate)
+
+            val updated = ArrayList<RuleEntity>()
+            rules.forEachIndexed { index, item ->
+                val newOrder = (index + 1).toLong()
+                if (item.id == 0L) {
+                    duplicate.userOrder = newOrder
+                } else if (item.userOrder != newOrder) {
+                    item.userOrder = newOrder
+                    updated.add(item)
+                }
+            }
+            if (updated.isNotEmpty()) {
+                rulesDao.updateRules(updated)
+            }
+            duplicate.id = rulesDao.createRule(duplicate)
+        }
+        return duplicate
+    }
+
     suspend fun updateRule(rule: RuleEntity) {
         SagerDatabase.rulesDao.updateRule(rule)
         ruleIterator { onUpdated(rule) }
@@ -192,59 +374,135 @@ object ProfileManager {
         }
     }
 
+    suspend fun replaceRules(rules: List<RuleEntity>) {
+        SagerDatabase.instance.runInTransaction {
+            SagerDatabase.rulesDao.reset()
+            rules.forEachIndexed { index, rule ->
+                rule.id = 0L
+                rule.userOrder = (index + 1).toLong()
+                rule.id = SagerDatabase.rulesDao.createRule(rule)
+            }
+        }
+        DataStore.rulesFirstCreate = true
+        ruleIterator { onCleared() }
+        rules.forEach { rule -> ruleIterator { onAdd(rule) } }
+    }
+
     suspend fun getRules(): List<RuleEntity> {
         var rules = SagerDatabase.rulesDao.allRules()
         if (rules.isEmpty() && !DataStore.rulesFirstCreate) {
             DataStore.rulesFirstCreate = true
             createRule(
                 RuleEntity(
-                    name = app.getString(R.string.route_opt_block_quic),
-                    port = "443",
-                    network = "udp",
-                    outbound = -2
+                    name = app.getString(R.string.route_opt_bypass_bittorrent),
+                    protocol = "bittorrent",
+                    outbound = -1,
+                    enabled = true
                 )
             )
             createRule(
                 RuleEntity(
                     name = app.getString(R.string.route_opt_block_ads),
                     domains = "geosite:category-ads-all",
-                    outbound = -2
+                    outbound = -2,
+                    enabled = true
                 )
             )
-            val fuckedCountry = mutableListOf("cn:中国")
-            if (Locale.getDefault().country != Locale.CHINA.country) {
-                // 非中文用户
-                fuckedCountry += "ir:Iran"
-                fuckedCountry += "ru:Russia"
+
+            val countryRules = getCountryRulesForFirstRun()
+
+            for (rule in countryRules) {
+                rule.enabled = true
+                createRule(rule, false)
             }
-            for (c in fuckedCountry) {
-                val country = c.substringBefore(":")
-                val displayCountry = c.substringAfter(":")
-                //
-                if (country == "cn") createRule(
-                    RuleEntity(
-                        name = app.getString(R.string.route_play_store, displayCountry),
-                        domains = "domain:googleapis.cn\ndomain:xn--ngstr-lra8j.com\ndomain:xn--ngstr-cn-8za9o.com",
-                    ), false
-                )
-                createRule(
-                    RuleEntity(
-                        name = app.getString(R.string.route_bypass_domain, displayCountry),
-                        domains = "geosite:$country",
-                        outbound = -1
-                    ), false
-                )
-                createRule(
-                    RuleEntity(
-                        name = app.getString(R.string.route_bypass_ip, displayCountry),
-                        ip = "geoip:$country",
-                        outbound = -1
-                    ), false
-                )
-            }
+
             rules = SagerDatabase.rulesDao.allRules()
         }
         return rules
     }
 
+    private suspend fun getCountryRulesForFirstRun(): List<RuleEntity> {
+        return when (DataStore.firstRunRoutingRegion.takeIf { it.isNotBlank() } ?: Locale.getDefault().country.lowercase()) {
+            "cn" -> getChinaRules()
+            "ir" -> getIranRules()
+            "ru" -> getRussiaRules()
+            else -> listOf(getChinaRules(), getIranRules(), getRussiaRules()).flatten()
+        }
+    }
+
+    suspend fun getChinaRules(): List<RuleEntity> {
+        val displayCountry = "中国"
+
+        return listOf(
+            RuleEntity(
+                name = app.getString(R.string.route_play_store, displayCountry),
+                domains = listOf(
+                    "regexp:\\.googleapis.cn",
+                    "regexp:\\.xn--ngstr-lra8j.com",
+                    "regexp:\\.xn--ngstr-cn-8za9o.com"
+                ).joinToString("\n"),
+            ),
+            RuleEntity(
+                name = app.getString(R.string.route_bypass_domain, displayCountry),
+                domains = "geosite:cn",
+                outbound = -1
+            ),
+            RuleEntity(
+                name = app.getString(R.string.route_bypass_ip, displayCountry),
+                ip = "geoip:cn",
+                outbound = -1
+            )
+        )
+    }
+
+    suspend fun getIranRules(): List<RuleEntity> {
+        val displayCountry = "Iran"
+
+        return listOf(
+            RuleEntity(
+                name = app.getString(R.string.route_bypass_domain, displayCountry),
+                domains = "geosite:ir",
+                outbound = -1
+            ),
+            RuleEntity(
+                name = app.getString(R.string.route_bypass_ip, displayCountry),
+                ip = "geoip:ir",
+                outbound = -1
+            )
+        )
+    }
+
+    suspend fun getRussiaRules(): List<RuleEntity> {
+        val displayCountry = "Russia"
+
+        return listOf(
+            RuleEntity(
+                name = app.getString(R.string.route_bypass_domain, displayCountry),
+                domains = listOf(
+                    "geosite:category-ru",
+                    "geosite:category-gov-ru",
+                    "regexp:\\.ru$",
+                    "regexp:\\.su$",
+                    "regexp:\\.рф$",
+                    "regexp:\\.by$",
+                    "regexp:\\.ru.com$",
+                    "regexp:\\.ru.net$",
+                    "regexp:\\.moscow$",
+                    "regexp:\\.xn--p1ai$",
+                    "regexp:\\.xn--p1acf$",
+                    "regexp:\\.xn--80aswg$",
+                    "regexp:\\.xn--c1avg$",
+                    "regexp:\\.xn--80asehdb$",
+                    "regexp:\\.xn--d1acj3b$",
+                    "regexp:\\.xn--90ais$"
+                ).joinToString("\n"),
+                outbound = -1
+            ),
+            RuleEntity(
+                name = app.getString(R.string.route_bypass_ip, displayCountry),
+                ip = "geoip:ru",
+                outbound = -1
+            )
+        )
+    }
 }

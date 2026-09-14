@@ -97,6 +97,12 @@ public class SOCKSBean extends AbstractBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash("socks");
+    }
+
+    @NotNull
+    @Override
     public SOCKSBean clone() {
         return KryoConverters.deserialize(new SOCKSBean(), KryoConverters.serialize(this));
     }

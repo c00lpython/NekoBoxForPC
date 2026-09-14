@@ -3,15 +3,16 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/content"
-    style="@style/Widget.SagerNet.CardView.Elevated"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp">
+    android:layout_margin="4dp"
+    app:cardElevation="2dp">
 
     <LinearLayout
         android:id="@+id/content_lin"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:focusable="true"
         android:orientation="vertical">
 
 
@@ -32,11 +33,29 @@
                 android:paddingBottom="8dp">
 
                 <TextView
+                    android:id="@+id/dns_rule_icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/bg_dns_rule_badge"
+                    android:contentDescription="@string/dns_rule"
+                    android:gravity="center"
+                    android:minWidth="32dp"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:text="@string/dns_rule_badge"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?attr/colorOnPrimary"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
+                <TextView
                     android:id="@+id/profile_name"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:attr/textColorPrimary"
+                    android:textColor="?attr/colorOnSurface"
                     android:textStyle="bold"
                     tools:text="@string/profile_name" />
             </LinearLayout>
@@ -64,6 +83,17 @@
                 android:focusable="true"
                 android:padding="12dp"
                 app:srcCompat="@drawable/ic_image_edit" />
+
+            <androidx.appcompat.widget.AppCompatImageView
+                android:id="@+id/duplicate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/duplicate"
+                android:focusable="true"
+                android:padding="12dp"
+                app:srcCompat="@drawable/ic_baseline_content_copy_24" />
 
             <LinearLayout
                 android:id="@+id/share"
@@ -112,7 +142,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <TextView
                     android:layout_marginTop="4dp"
@@ -121,11 +151,11 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
 
-            <androidx.appcompat.widget.SwitchCompat
+            <com.google.android.material.materialswitch.MaterialSwitch
                 android:layout_marginBottom="2dp"
                 android:id="@+id/enable"
                 android:layout_width="wrap_content"

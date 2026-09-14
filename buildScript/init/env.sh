@@ -8,6 +8,23 @@ else
   export SRC_ROOT=$(realpath .)
 fi
 
+if [ -z "$GOPATH" ]; then
+  export GOPATH=$(go env GOPATH)
+fi
+GOROOT=$(go env GOROOT)
+if [ ! -w "$GOPATH" ]; then
+  export GOPATH="$SRC_ROOT/libcore/.build/gopath"
+fi
+
+export GOMOBILE="${GOMOBILE:-$SRC_ROOT/libcore/.build/gomobile}"
+export GOCACHE="${GOCACHE:-$SRC_ROOT/libcore/.build/go-cache}"
+export GOMODCACHE="${GOMODCACHE:-$SRC_ROOT/libcore/.build/mod-cache}"
+if [ -z "${GOBIN:-}" ] || [ ! -w "$GOBIN" ] || [ "$GOBIN" = "$GOROOT/bin" ]; then
+  export GOBIN="$SRC_ROOT/libcore/.build/bin"
+fi
+export PATH="$GOBIN:$PATH"
+mkdir -p "$GOPATH" "$GOMOBILE" "$GOCACHE" "$GOMODCACHE" "$GOBIN"
+
 DEPS=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
 
 export ANDROID_ARM_CC=$DEPS/armv7a-linux-androideabi21-clang

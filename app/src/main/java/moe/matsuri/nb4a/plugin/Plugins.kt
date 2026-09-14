@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.content.pm.ProviderInfo
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.plugin.PluginManager.loadString
@@ -80,7 +82,9 @@ object Plugins {
         if (providers.size > 1) {
             val message =
                 "Conflicting plugins found from: ${providers.joinToString { it.packageName }}"
-            Toast.makeText(SagerNet.application, message, Toast.LENGTH_LONG).show()
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(SagerNet.application, message, Toast.LENGTH_LONG).show()
+            }
         }
 
         return providers[0]

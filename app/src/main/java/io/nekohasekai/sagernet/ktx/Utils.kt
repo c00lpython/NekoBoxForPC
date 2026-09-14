@@ -20,6 +20,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.AttrRes
 import androidx.annotation.ColorRes
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
@@ -175,10 +176,13 @@ fun String.unUrlSafe(): String {
 }
 
 fun RecyclerView.scrollTo(index: Int, force: Boolean = false) {
-    if (force) post {
-        scrollToPosition(index)
+    fun isTargetFullyVisible(): Boolean {
+        val manager = layoutManager ?: return false
+        val target = manager.findViewByPosition(index) ?: return false
+        return manager.isViewPartiallyVisible(target, true, true)
     }
-    postDelayed({
+
+    fun smoothScrollToTarget() {
         try {
             layoutManager?.startSmoothScroll(object : LinearSmoothScroller(context) {
                 init {
@@ -191,7 +195,20 @@ fun RecyclerView.scrollTo(index: Int, force: Boolean = false) {
             })
         } catch (ignored: IllegalArgumentException) {
         }
-    }, 300L)
+    }
+
+    doOnLayout {
+        if (isTargetFullyVisible()) return@doOnLayout
+
+        if (force) {
+            scrollToPosition(index)
+            postDelayed(::smoothScrollToTarget, 300L)
+        } else {
+            postDelayed({
+                if (!isTargetFullyVisible()) smoothScrollToTarget()
+            }, 300L)
+        }
+    }
 }
 
 val app get() = SagerNet.application
@@ -242,7 +259,8 @@ fun Fragment.startFilesForResult(
 
 fun Fragment.needReload() {
     if (DataStore.serviceState.started) {
-        snackbar(getString(R.string.need_reload)).setAction(R.string.apply) {
+        val activity = activity as? MainActivity ?: return
+        activity.snackbar(activity.getString(R.string.need_reload)).setAction(R.string.apply) {
             SagerNet.reloadService()
         }.show()
     }
@@ -284,9 +302,13 @@ fun Context.getColour(@ColorRes colorRes: Int): Int {
 }
 
 fun Context.getColorAttr(@AttrRes resId: Int): Int {
-    return ContextCompat.getColor(this, TypedValue().also {
-        theme.resolveAttribute(resId, it, true)
-    }.resourceId)
+    val typedValue = TypedValue()
+    if (!theme.resolveAttribute(resId, typedValue, true)) throw Resources.NotFoundException()
+    return when {
+        typedValue.resourceId != 0 -> ContextCompat.getColor(this, typedValue.resourceId)
+        typedValue.type in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT -> typedValue.data
+        else -> throw Resources.NotFoundException()
+    }
 }
 
 val isExpert: Boolean by lazy { BuildConfig.DEBUG || DataStore.isExpert }

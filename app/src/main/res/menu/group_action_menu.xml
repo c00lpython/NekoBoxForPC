@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+        android:id="@+id/action_share_subscription_url"
+        android:title="@string/share_subscription_url">
+        <menu>
+            <item
+                android:id="@+id/action_url_clipboard"
+                android:title="@string/action_export_clipboard" />
+            <item
+                android:id="@+id/action_url_qr"
+                android:title="@string/share_qr_nfc" />
+        </menu>
+    </item>
+    <item
         android:id="@+id/action_share_subscription"
         android:title="@string/share_subscription">
         <menu>

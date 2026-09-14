@@ -17,20 +17,23 @@
 package moe.matsuri.nb4a.ui
 
 import android.content.Context
-import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
+import android.util.TypedValue
 import android.util.AttributeSet
-import android.view.View
+import android.view.Gravity
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
-import android.widget.Spinner
-import androidx.preference.DropDownPreference
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.preference.ListPreference
+import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.radiobutton.MaterialRadioButton
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.ktx.getColorAttr
 
 /**
- * Bend [DropDownPreference] to support
- * [Simple Menus](https://material.google.com/components/menus.html#menus-behavior).
+ * Material dialog-backed list preference used by protocol/settings selectors.
  */
 
 
@@ -40,71 +43,116 @@ open class SimpleMenuPreference
     attrs: AttributeSet? = null,
     defStyleAttr: Int = androidx.preference.R.attr.dropdownPreferenceStyle,
     defStyleRes: Int = 0
-) : DropDownPreference(context!!, attrs, defStyleAttr, defStyleRes) {
+) : ListPreference(context!!, attrs, defStyleAttr, defStyleRes) {
 
-    private lateinit var mAdapter: SimpleMenuAdapter
+    init {
+        val staticSummary = attrs?.preferenceText(this.context, "summary")
+        val useSimpleSummaryProvider = attrs?.preferenceBoolean("useSimpleSummaryProvider") == true
+        if (useSimpleSummaryProvider && !staticSummary.isNullOrBlank()) {
+            summaryProvider = StaticAndEntrySummaryProvider(staticSummary)
+        }
+    }
 
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
-        val mSpinner = holder.itemView.findViewById<Spinner>(R.id.spinner)
-        mSpinner.layoutParams.width = ViewGroup.LayoutParams.WRAP_CONTENT
-        mSpinner.setPopupBackgroundResource(R.drawable.bg_spinner_dropdown)
-    }
 
-    override fun createAdapter(): ArrayAdapter<CharSequence?> {
-        mAdapter = SimpleMenuAdapter(getContext(), R.layout.simple_menu_dropdown_item)
-        return mAdapter
-    }
-
-    override fun setValue(value: String?) {
-        super.setValue(value)
-        if (::mAdapter.isInitialized) {
-            mAdapter.currentPosition = entryValues.indexOf(value)
-            mAdapter.notifyDataSetChanged()
-        }
-    }
-
-    private class SimpleMenuAdapter(context: Context, resource: Int) :
-        ArrayAdapter<CharSequence?>(context, resource) {
-
-        var currentPosition = -1
-
-        private val radius = 12f * context.resources.displayMetrics.density
-        private val selectedColor = context.getColorAttr(R.attr.colorMaterial100)
-
-        private val topDrawable = GradientDrawable().apply {
-            setColor(selectedColor)
-            cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+        holder.findViewById(R.id.spinner)?.let {
+            it.layoutParams.width = 0
         }
 
-        private val bottomDrawable = GradientDrawable().apply {
-            setColor(selectedColor)
-            cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, radius, radius, radius, radius)
-        }
-
-        private val middleDrawable = GradientDrawable().apply {
-            setColor(selectedColor)
-        }
-
-        private val singleDrawable = GradientDrawable().apply {
-            setColor(selectedColor)
-            cornerRadii = floatArrayOf(radius, radius, radius, radius, radius, radius, radius, radius)
-        }
-
-        override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view: View = super.getDropDownView(position, convertView, parent)
-
-            if (position == currentPosition) {
-                view.background = when {
-                    position == 0 && count == 1 -> singleDrawable
-                    position == 0 -> topDrawable
-                    position == count - 1 -> bottomDrawable
-                    else -> middleDrawable
-                }
-            } else {
-                view.background = null
+        holder.findViewById(android.R.id.title)?.let { view ->
+            (view as TextView).apply {
+                isSingleLine = false
+                maxLines = 10
+                ellipsize = null
             }
-            return view
         }
+    }
+
+    override fun onClick() {
+        val values = entryValues ?: return
+        val labels = entries ?: return
+        val checked = values.indexOf(value)
+
+        lateinit var dialog: androidx.appcompat.app.AlertDialog
+        val density = context.resources.displayMetrics.density
+        val horizontalPadding = (24 * density).toInt()
+        val verticalPadding = (8 * density).toInt()
+        val controlSlot = (48 * density).toInt()
+        val textStartMargin = (8 * density).toInt()
+        val list = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, verticalPadding, 0, verticalPadding)
+            labels.forEachIndexed { index, label ->
+                val radioButton = MaterialRadioButton(context).apply {
+                    isChecked = index == checked
+                    isClickable = false
+                    isFocusable = false
+                }
+                addView(LinearLayout(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    )
+                    orientation = LinearLayout.HORIZONTAL
+                    minimumHeight = (56 * density).toInt()
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(horizontalPadding, 0, horizontalPadding, 0)
+                    addView(radioButton, LinearLayout.LayoutParams(controlSlot, controlSlot))
+                    addView(TextView(context).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                        maxLines = 3
+                        ellipsize = TextUtils.TruncateAt.END
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 18F)
+                        text = label
+                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1F).apply {
+                        marginStart = textStartMargin
+                    })
+                    setOnClickListener {
+                        val newValue = values[index].toString()
+                        if (callChangeListener(newValue)) {
+                            value = newValue
+                            notifyChanged()
+                        }
+                        dialog.dismiss()
+                    }
+                })
+            }
+        }
+
+        dialog = MaterialAlertDialogBuilder(context)
+            .setTitle(title)
+            .setView(ScrollView(context).apply { addView(list) })
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private class StaticAndEntrySummaryProvider(
+        private val staticSummary: CharSequence
+    ) : Preference.SummaryProvider<ListPreference> {
+        override fun provideSummary(preference: ListPreference): CharSequence {
+            val entry = preference.entry?.takeIf { it.isNotBlank() }
+            return when {
+                entry == null -> staticSummary
+                staticSummary.isBlank() -> entry
+                else -> TextUtils.concat(entry, "\n\n", staticSummary)
+            }
+        }
+    }
+
+    private fun AttributeSet.preferenceText(context: Context, name: String): CharSequence? {
+        for (index in 0 until attributeCount) {
+            if (getAttributeName(index) != name) continue
+            val resourceId = getAttributeResourceValue(index, 0)
+            return if (resourceId != 0) context.getText(resourceId) else getAttributeValue(index)
+        }
+        return null
+    }
+
+    private fun AttributeSet.preferenceBoolean(name: String): Boolean {
+        for (index in 0 until attributeCount) {
+            if (getAttributeName(index) == name) return getAttributeBooleanValue(index, false)
+        }
+        return false
     }
 }

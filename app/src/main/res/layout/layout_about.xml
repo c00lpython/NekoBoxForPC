@@ -47,7 +47,7 @@
                         android:layout_marginTop="16dp"
                         android:text="@string/app_desc"
                         android:textAppearance="?attr/textAppearanceBody2"
-                        android:textColor="?android:textColorSecondary" />
+                        android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
 
@@ -83,7 +83,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
                         android:textAppearance="?attr/textAppearanceBody2"
-                        android:textColor="?android:textColorSecondary"
+                        android:textColor="?attr/colorOnSurfaceVariant"
                         android:textIsSelectable="true"
                         android:textSize="12sp" />
 

@@ -30,6 +30,14 @@ fun PreferenceDataStore.stringToInt(
     getString(key, "$default")?.toIntOrNull() ?: default
 }, { key, value -> putString(key, "$value") })
 
+fun PreferenceDataStore.positiveStringToIntCompat(
+    name: String,
+    defaultValue: () -> Int = { 0 },
+) = PreferenceProxy(name, defaultValue, { key, default ->
+    val value = getString(key, null)?.toIntOrNull() ?: getInt(key, default)
+    value.takeIf { it > 0 } ?: default
+}, { key, value -> putString(key, "$value") })
+
 fun PreferenceDataStore.stringToIntIfExists(
     name: String,
     defaultValue: () -> Int = { 0 },

@@ -22,6 +22,9 @@ public class NaiveBean extends AbstractBean {
     public String sni;
     public String certificates;
     public Integer insecureConcurrency;
+    public String quicCongestionControl;
+    public String streamReceiveWindow;
+    public String quicSessionReceiveWindow;
 
     // sing-box socks
     public Boolean sUoT;
@@ -37,12 +40,15 @@ public class NaiveBean extends AbstractBean {
         if (certificates == null) certificates = "";
         if (sni == null) sni = "";
         if (insecureConcurrency == null) insecureConcurrency = 0;
+        if (quicCongestionControl == null) quicCongestionControl = "";
+        if (streamReceiveWindow == null) streamReceiveWindow = "";
+        if (quicSessionReceiveWindow == null) quicSessionReceiveWindow = "";
         if (sUoT == null) sUoT = false;
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(3);
+        output.writeInt(5);
         super.serialize(output);
         output.writeString(proto);
         output.writeString(username);
@@ -53,6 +59,9 @@ public class NaiveBean extends AbstractBean {
         output.writeString(sni);
         output.writeInt(insecureConcurrency);
         output.writeBoolean(sUoT);
+        output.writeString(quicCongestionControl);
+        output.writeString(streamReceiveWindow);
+        output.writeString(quicSessionReceiveWindow);
     }
 
     @Override
@@ -73,6 +82,19 @@ public class NaiveBean extends AbstractBean {
         if (version >= 3) {
             sUoT = input.readBoolean();
         }
+        if (version >= 4) {
+            quicCongestionControl = input.readString();
+        }
+        if (version >= 5) {
+            streamReceiveWindow = input.readString();
+            quicSessionReceiveWindow = input.readString();
+        }
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("naive");
     }
 
     @NotNull

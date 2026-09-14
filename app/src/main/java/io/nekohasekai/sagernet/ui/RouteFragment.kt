@@ -2,24 +2,36 @@ package io.nekohasekai.sagernet.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.widget.PopupMenu
+import androidx.appcompat.widget.TooltipCompat
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.RuleEntity
+import io.nekohasekai.sagernet.database.RuleType
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.LayoutEmptyRouteBinding
 import io.nekohasekai.sagernet.databinding.LayoutRouteItemBinding
+import io.nekohasekai.sagernet.databinding.LayoutRoutingExportNameDialogBinding
 import io.nekohasekai.sagernet.ktx.*
+import io.nekohasekai.sagernet.routing.RoutingExportWarning
+import io.nekohasekai.sagernet.routing.RoutingProfileExporter
+import io.nekohasekai.sagernet.routing.RoutingProfileFormat
 import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.widget.QRCodeDialog
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
 
 class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItemClickListener {
@@ -68,8 +80,26 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val index = viewHolder.bindingAdapterPosition
-                ruleAdapter.remove(index)
-                undoManager.remove(index to (viewHolder as RuleAdapter.RuleHolder).rule)
+                if (index == RecyclerView.NO_POSITION) return
+                val rule = (viewHolder as RuleAdapter.RuleHolder).rule
+                if (DataStore.confirmProfileDelete) {
+                    var confirmed = false
+                    MaterialAlertDialogBuilder(activity)
+                        .setTitle(R.string.delete_route_prompt)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            confirmed = true
+                            ruleAdapter.remove(index)
+                            undoManager.remove(index to rule)
+                        }
+                        .setNegativeButton(R.string.no, null)
+                        .setOnDismissListener {
+                            if (!confirmed) ruleAdapter.notifyItemChanged(index)
+                        }
+                        .show()
+                } else {
+                    ruleAdapter.remove(index)
+                    undoManager.remove(index to rule)
+                }
             }
 
             override fun onMove(
@@ -104,7 +134,20 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
     override fun onMenuItemClick(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.action_new_route -> {
-                startActivity(Intent(context, RouteSettingsActivity::class.java))
+                val anchor = toolbar.findViewById<View>(R.id.action_new_route) ?: toolbar
+                PopupMenu(requireContext(), anchor).apply {
+                    menu.add(Menu.NONE, RuleType.NORMAL.ordinal, Menu.NONE, R.string.route_normal)
+                    menu.add(Menu.NONE, RuleType.DNS.ordinal, Menu.NONE, R.string.dns_rule)
+                    setOnMenuItemClickListener { routeTypeItem ->
+                        startActivity(Intent(context, RouteSettingsActivity::class.java).apply {
+                            if (routeTypeItem.itemId == RuleType.DNS.ordinal) {
+                                putExtra(RouteSettingsActivity.EXTRA_ROUTE_TYPE, RuleType.DNS.value)
+                            }
+                        })
+                        true
+                    }
+                    show()
+                }
             }
             R.id.action_reset_route -> {
                 MaterialAlertDialogBuilder(activity).setTitle(R.string.confirm)
@@ -122,9 +165,110 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
             R.id.action_manage_assets -> {
                 startActivity(Intent(requireContext(), AssetsActivity::class.java))
             }
+            R.id.action_import_routing_clipboard -> {
+                activity.requestRoutingImport(SagerNet.getClipboardText())
+            }
+            R.id.action_export_routing_happ_clipboard -> requestRoutingExport(
+                RoutingProfileFormat.HAPP, RoutingExportDestination.CLIPBOARD,
+            )
+            R.id.action_export_routing_happ_share -> requestRoutingExport(
+                RoutingProfileFormat.HAPP, RoutingExportDestination.SHARE,
+            )
+            R.id.action_export_routing_happ_qr -> requestRoutingExport(
+                RoutingProfileFormat.HAPP, RoutingExportDestination.QR_CODE,
+            )
+            R.id.action_export_routing_incy_clipboard -> requestRoutingExport(
+                RoutingProfileFormat.INCY, RoutingExportDestination.CLIPBOARD,
+            )
+            R.id.action_export_routing_incy_share -> requestRoutingExport(
+                RoutingProfileFormat.INCY, RoutingExportDestination.SHARE,
+            )
+            R.id.action_export_routing_incy_qr -> requestRoutingExport(
+                RoutingProfileFormat.INCY, RoutingExportDestination.QR_CODE,
+            )
+            R.id.action_export_routing_nekobox_plus_clipboard -> requestRoutingExport(
+                RoutingProfileFormat.NEKOBOX_PLUS, RoutingExportDestination.CLIPBOARD,
+            )
+            R.id.action_export_routing_nekobox_plus_share -> requestRoutingExport(
+                RoutingProfileFormat.NEKOBOX_PLUS, RoutingExportDestination.SHARE,
+            )
+            R.id.action_export_routing_nekobox_plus_qr -> requestRoutingExport(
+                RoutingProfileFormat.NEKOBOX_PLUS, RoutingExportDestination.QR_CODE,
+            )
         }
         return true
     }
+
+    private enum class RoutingExportDestination { CLIPBOARD, SHARE, QR_CODE }
+
+    private fun requestRoutingExport(
+        format: RoutingProfileFormat,
+        destination: RoutingExportDestination,
+    ) {
+        val dialogBinding = LayoutRoutingExportNameDialogBinding.inflate(layoutInflater)
+        val input = dialogBinding.routingName.apply {
+            setText(R.string.routing_export_default_name)
+            selectAll()
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.routing_export_name)
+            .setView(dialogBinding.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.action_export) { _, _ ->
+                val name = input.text?.toString().orEmpty()
+                runOnDefaultDispatcher {
+                    val result = RoutingProfileExporter.export(
+                        format,
+                        name,
+                        SagerDatabase.rulesDao.allRules(),
+                    )
+                    onMainDispatcher {
+                        val completed = when (destination) {
+                            RoutingExportDestination.CLIPBOARD -> {
+                                val copied = SagerNet.trySetPrimaryClip(result.link)
+                                when {
+                                    !copied -> activity.snackbar(R.string.action_export_err).show()
+                                    result.warnings.isEmpty() -> {
+                                        activity.snackbar(R.string.action_export_msg).show()
+                                    }
+                                }
+                                copied
+                            }
+                            RoutingExportDestination.SHARE -> {
+                                startActivity(Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND)
+                                        .setType("text/plain")
+                                        .putExtra(Intent.EXTRA_TEXT, result.link),
+                                    getString(R.string.share),
+                                ))
+                                true
+                            }
+                            RoutingExportDestination.QR_CODE -> {
+                                QRCodeDialog(result.link, name)
+                                    .showAllowingStateLoss(parentFragmentManager)
+                                true
+                            }
+                        }
+                        if (completed && result.warnings.isNotEmpty()) {
+                            MaterialAlertDialogBuilder(requireContext())
+                                .setTitle(R.string.routing_export_complete_with_warnings)
+                                .setMessage(result.warnings.joinToString("\n") { warningText(it) })
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun warningText(warning: RoutingExportWarning): String = getString(when (warning) {
+        RoutingExportWarning.UNSUPPORTED_RULES -> R.string.routing_export_warning_unsupported_rules
+        RoutingExportWarning.SIMPLIFIED_ORDER -> R.string.routing_export_warning_order
+        RoutingExportWarning.DNS_VALUES_OMITTED -> R.string.routing_export_warning_dns
+        RoutingExportWarning.DNS_HOST_VALUES_OMITTED -> R.string.routing_export_warning_hosts
+        RoutingExportWarning.CUSTOM_OUTBOUND_FALLBACK -> R.string.routing_export_warning_outbound_fallback
+    })
 
     inner class RuleAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>(), ProfileManager.RuleListener, UndoSnackbarManager.Interface<RuleEntity> {
 
@@ -232,9 +376,9 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
         }
 
         override suspend fun onUpdated(rule: RuleEntity) {
-            val index = ruleList.indexOfFirst { it.id == rule.id }
-            if (index == -1) return
             ruleListView.post {
+                val index = ruleList.indexOfFirst { it.id == rule.id }
+                if (index == -1) return@post
                 ruleList[index] = rule
                 ruleAdapter.notifyItemChanged(index + 1)
                 needReload()
@@ -242,12 +386,12 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
         }
 
         override suspend fun onRemoved(ruleId: Long) {
-            val index = ruleList.indexOfFirst { it.id == ruleId }
-            if (index == -1) {
-                onMainDispatcher {
+            ruleListView.post {
+                val index = ruleList.indexOfFirst { it.id == ruleId }
+                if (index == -1) {
                     needReload()
+                    return@post
                 }
-            } else ruleListView.post {
                 ruleList.removeAt(index)
                 ruleAdapter.notifyItemRemoved(index + 1)
                 needReload()
@@ -277,14 +421,24 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
             val profileType = binding.profileType
             val routeOutbound = binding.routeOutbound
             val editButton = binding.edit
+            val duplicateButton = binding.duplicate
             val shareLayout = binding.share
             val enableSwitch = binding.enable
+            val card = binding.content
+            val dnsRuleIcon = binding.dnsRuleIcon
 
             fun bind(ruleEntity: RuleEntity) {
                 rule = ruleEntity
+                val isDnsRule = RuleType.fromValue(rule.type) == RuleType.DNS
+                dnsRuleIcon.isVisible = isDnsRule
                 profileName.text = rule.displayName()
                 profileType.text = rule.mkSummary()
                 routeOutbound.text = rule.displayOutbound()
+                card.setCardBackgroundColor(
+                    itemView.context.getColorAttr(
+                        com.google.android.material.R.attr.colorSurface
+                    ),
+                )
 
                 // 根据路由类型设置文字颜色
                 val colorRes = when (rule.outbound) {
@@ -313,6 +467,18 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
                     startActivity(Intent(it.context, RouteSettingsActivity::class.java).apply {
                         putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, rule.id)
                     })
+                }
+                TooltipCompat.setTooltipText(duplicateButton, getString(R.string.duplicate))
+                duplicateButton.setOnClickListener {
+                    val ruleToDuplicate = rule
+                    runOnDefaultDispatcher {
+                        ProfileManager.duplicateRuleAfter(ruleToDuplicate)
+                        reload()
+                        onMainDispatcher {
+                            needReload()
+                            Toast.makeText(requireContext(), R.string.route_duplicated, Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
         }

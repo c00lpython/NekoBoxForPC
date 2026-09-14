@@ -3,7 +3,7 @@ package io.nekohasekai.sagernet.ui.profile
 import android.os.Bundle
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceFragmentCompat
-import androidx.preference.SwitchPreference
+import moe.matsuri.nb4a.ui.MaterialSwitchPreference
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
@@ -73,7 +73,7 @@ class ShadowsocksSettingsActivity : ProfileSettingsActivity<ShadowsocksBean>() {
 
         // Mux mode visibility control
         muxMode.preference.apply {
-            updateMuxMode(muxMode.readIntFromCache())
+            updateMuxMode(muxMode.readStringToIntFromCache())
             this as SimpleMenuPreference
             setOnPreferenceChangeListener { _, newValue ->
                 updateMuxMode((newValue as String).toInt())
@@ -83,7 +83,7 @@ class ShadowsocksSettingsActivity : ProfileSettingsActivity<ShadowsocksBean>() {
 
         muxBrutal.preference.apply {
             updateMuxBrutal(muxBrutal.readBoolFromCache())
-            this as SwitchPreference
+            this as MaterialSwitchPreference
             setOnPreferenceChangeListener { _, newValue ->
                 updateMuxBrutal(newValue as Boolean)
                 true

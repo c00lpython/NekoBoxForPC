@@ -2,6 +2,7 @@ package io.nekohasekai.sagernet.fmt.hysteria
 
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.fmt.LOCALHOST
+import io.nekohasekai.sagernet.fmt.applySharedTLSOptions
 import io.nekohasekai.sagernet.ktx.*
 import moe.matsuri.nb4a.SingBoxOptions
 import moe.matsuri.nb4a.utils.listByLineOrComma
@@ -310,6 +311,7 @@ fun buildSingBoxOutboundHysteriaBean(bean: HysteriaBean): SingBoxOptions.SingBox
                 }
                 insecure = bean.allowInsecure || DataStore.globalAllowInsecure
                 enabled = true
+                applySharedTLSOptions(bean)
             }
         }
 
@@ -349,6 +351,7 @@ fun buildSingBoxOutboundHysteriaBean(bean: HysteriaBean): SingBoxOptions.SingBox
                 }
                 insecure = bean.allowInsecure || DataStore.globalAllowInsecure
                 enabled = true
+                applySharedTLSOptions(bean)
             }
         }
 

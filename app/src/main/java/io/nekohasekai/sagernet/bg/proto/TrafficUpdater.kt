@@ -1,5 +1,7 @@
 package io.nekohasekai.sagernet.bg.proto
 
+import android.os.SystemClock
+
 class TrafficUpdater(
     private val box: libcore.BoxInstance,
     val items: List<TrafficLooperData>, // contain "bypass"
@@ -21,7 +23,7 @@ class TrafficUpdater(
 
     private fun updateOne(item: TrafficLooperData): TrafficLooperData {
         // last update
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         val interval = now - item.lastUpdate
         item.lastUpdate = now
         if (interval <= 0) {

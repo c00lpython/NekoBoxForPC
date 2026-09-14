@@ -8,12 +8,16 @@ import androidx.work.ExistingPeriodicWorkPolicy.UPDATE
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteWorkManager
+import io.nekohasekai.sagernet.BootReceiver
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
+import io.nekohasekai.sagernet.ktx.preferSmallIcon
+import io.nekohasekai.sagernet.routing.SubscriptionRoutingIntervals
+import io.nekohasekai.sagernet.routing.SubscriptionRoutingRepository
 import java.util.concurrent.TimeUnit
 
 object SubscriptionUpdater {
@@ -21,30 +25,77 @@ object SubscriptionUpdater {
     private const val WORK_NAME = "SubscriptionUpdater"
 
     suspend fun reconfigureUpdater() {
-        RemoteWorkManager.getInstance(app).cancelUniqueWork(WORK_NAME)
-
         val subscriptions = SagerDatabase.groupDao.subscriptions()
-            .filter { it.subscription!!.autoUpdate }
-        if (subscriptions.isEmpty()) return
+            .filter {
+                val subscription = it.subscription!!
+                subscription.autoUpdate ||
+                    (subscription.routingEnabled && subscription.autoRoutingUrl.isNotBlank())
+            }
+        syncBootReceiverEnabled(subscriptions.isNotEmpty())
+        if (subscriptions.isEmpty()) {
+            RemoteWorkManager.getInstance(app).cancelUniqueWork(WORK_NAME)
+            return
+        }
 
-        // PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS
-        var minDelay =
-            subscriptions.minByOrNull { it.subscription!!.autoUpdateDelay }!!.subscription!!.autoUpdateDelay.toLong()
-        val now = System.currentTimeMillis() / 1000L
-        var minInitDelay =
-            subscriptions.minOf { now - it.subscription!!.lastUpdated - (minDelay * 60) }
-        if (minDelay < 15) minDelay = 15
-        if (minInitDelay > 60) minInitDelay = 60
+        val schedule = SubscriptionUpdateSchedulePolicy.schedule(
+            subscriptions = subscriptions.flatMap {
+                val subscription = it.subscription!!
+                buildList {
+                    if (subscription.autoUpdate) {
+                        add(
+                            SubscriptionUpdateSchedulePolicy.SubscriptionState(
+                                autoUpdateDelayMinutes = subscription.autoUpdateDelay,
+                                lastUpdatedSeconds = subscription.lastUpdated,
+                            ),
+                        )
+                    }
+                    if (subscription.routingEnabled && subscription.autoRoutingUrl.isNotBlank()) {
+                        add(
+                            SubscriptionUpdateSchedulePolicy.SubscriptionState(
+                                autoUpdateDelayMinutes =
+                                    SubscriptionRoutingIntervals.normalize(subscription.routingUpdateInterval) / 60,
+                                lastUpdatedSeconds = subscription.routingLastUpdated.toInt(),
+                            ),
+                        )
+                    }
+                }
+            },
+            nowSeconds = System.currentTimeMillis() / 1000L,
+        ) ?: return
 
         // main process
         RemoteWorkManager.getInstance(app).enqueueUniquePeriodicWork(
             WORK_NAME,
             UPDATE,
-            PeriodicWorkRequest.Builder(UpdateTask::class.java, minDelay, TimeUnit.MINUTES)
+            PeriodicWorkRequest.Builder(UpdateTask::class.java, schedule.intervalMinutes, TimeUnit.MINUTES)
                 .apply {
-                    if (minInitDelay > 0) setInitialDelay(minInitDelay, TimeUnit.SECONDS)
+                    if (schedule.initialDelaySeconds > 0) {
+                        setInitialDelay(schedule.initialDelaySeconds, TimeUnit.SECONDS)
+                    }
                 }
                 .build()
+        )
+        Logs.d(
+            "reconfigureUpdater, interval: ${schedule.intervalMinutes} min" +
+                    if (schedule.initialDelaySeconds > 0) ", initial delay: ${schedule.initialDelaySeconds} s" else ""
+        )
+    }
+
+    suspend fun syncBootReceiverEnabled() {
+        syncBootReceiverEnabled(
+            SagerDatabase.groupDao.subscriptions()
+                .any {
+                    val subscription = it.subscription!!
+                    subscription.autoUpdate ||
+                        (subscription.routingEnabled && subscription.autoRoutingUrl.isNotBlank())
+                }
+        )
+    }
+
+    private fun syncBootReceiverEnabled(hasAutoUpdateSubscriptions: Boolean) {
+        BootReceiver.enabled = SubscriptionBootReceiverPolicy.shouldEnableReceiver(
+            persistAcrossReboot = DataStore.persistAcrossReboot,
+            hasAutoUpdateSubscriptions = hasAutoUpdateSubscriptions,
         )
     }
 
@@ -59,33 +110,44 @@ object SubscriptionUpdater {
             .setTicker(applicationContext.getString(R.string.forward_success))
             .setContentTitle(applicationContext.getString(R.string.subscription_update))
             .setSmallIcon(R.drawable.ic_service_active)
+            .preferSmallIcon()
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
 
         override suspend fun doWork(): Result {
-            var subscriptions =
-                SagerDatabase.groupDao.subscriptions().filter { it.subscription!!.autoUpdate }
-            if (!DataStore.serviceState.connected) {
-                Logs.d("work: not connected")
-                subscriptions = subscriptions.filter { !it.subscription!!.updateWhenConnectedOnly }
-            }
+            val subscriptions = SagerDatabase.groupDao.subscriptions()
 
             if (subscriptions.isNotEmpty()) for (profile in subscriptions) {
                 val subscription = profile.subscription!!
 
-                if (((System.currentTimeMillis() / 1000).toInt() - subscription.lastUpdated) < subscription.autoUpdateDelay * 60) {
-                    Logs.d("work: not updating " + profile.displayName())
-                    continue
-                }
-                Logs.d("work: updating " + profile.displayName())
-
-                notification.setContentText(
-                    applicationContext.getString(
-                        R.string.subscription_update_message, profile.displayName()
+                val now = System.currentTimeMillis() / 1000L
+                val subscriptionDue =
+                    subscription.autoUpdate &&
+                        (DataStore.serviceState.connected || !subscription.updateWhenConnectedOnly) &&
+                        now - subscription.lastUpdated >= subscription.autoUpdateDelay.toLong() * 60L
+                if (subscriptionDue) {
+                    Logs.d("work: updating " + profile.displayName())
+                    notification.setContentText(
+                        applicationContext.getString(
+                            R.string.subscription_update_message,
+                            profile.displayName(),
+                        ),
                     )
-                )
-                nm.notify(2, notification.build())
+                    nm.notify(2, notification.build())
+                    GroupUpdater.executeUpdate(profile, false)
+                }
 
-                GroupUpdater.executeUpdate(profile, false)
+                val routingDue =
+                    subscription.routingEnabled &&
+                        subscription.autoRoutingUrl.isNotBlank() &&
+                        now - subscription.routingLastUpdated >=
+                        SubscriptionRoutingIntervals.normalize(subscription.routingUpdateInterval)
+                if (routingDue) {
+                    runCatching {
+                        if (SubscriptionRoutingRepository.refreshAutoRouting(profile)) {
+                            SagerDatabase.groupDao.updateGroup(profile)
+                        }
+                    }.onFailure(Logs::w)
+                }
             }
 
             nm.cancel(2)

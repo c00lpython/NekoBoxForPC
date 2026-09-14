@@ -26,6 +26,12 @@ public class VMessBean extends StandardV2RayBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash(isVLESS() ? "vless" : "vmess");
+    }
+
+    @NotNull
+    @Override
     public VMessBean clone() {
         return KryoConverters.deserialize(new VMessBean(), KryoConverters.serialize(this));
     }

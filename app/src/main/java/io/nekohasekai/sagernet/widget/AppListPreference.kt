@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.widget
 import android.content.Context
 import android.util.AttributeSet
 import androidx.preference.Preference
+import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.app
@@ -21,7 +22,11 @@ class AppListPreference : Preference {
     ) : super(context, attrs, defStyleAttr, defStyleRes)
 
     override fun getSummary(): CharSequence {
-        val packages = DataStore.routePackages.split("\n").filter { it.isNotBlank() }.map {
+        val packageList = when (key) {
+            Key.ADBLOCK_INCLUDED_PACKAGES -> DataStore.adblockIncludedPackages
+            else -> DataStore.routePackages
+        }
+        val packages = packageList.split("\n").filter { it.isNotBlank() }.map {
             PackageCache.installedPackages[it]?.applicationInfo?.loadLabel(app.packageManager)
                 ?: PackageCache.installedPluginPackages[it]?.applicationInfo?.loadLabel(app.packageManager)
                 ?: it

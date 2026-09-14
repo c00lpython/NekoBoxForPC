@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
-import androidx.preference.SwitchPreference
+import moe.matsuri.nb4a.ui.MaterialSwitchPreference
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
@@ -61,7 +61,39 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
     private val muxBrutalDownMbps = pbm.add(PreferenceBinding(Type.TextToInt, "muxBrutalDownMbps"))
 
     private val xhttpMode = pbm.add(PreferenceBinding(Type.Text, "xhttpMode"))
+    private val xhttpHeaders = pbm.add(PreferenceBinding(Type.Text, "xhttpHeaders"))
+    private val xhttpUplinkDataPlacement = pbm.add(PreferenceBinding(Type.Text, "xhttpUplinkDataPlacement"))
+    private val xhttpSessionPlacement = pbm.add(PreferenceBinding(Type.Text, "xhttpSessionPlacement"))
+    private val xhttpSessionPlacementOld = pbm.add(PreferenceBinding(Type.Text, "xhttpSessionPlacementOld"))
+    private val xhttpPaddingMethod = pbm.add(PreferenceBinding(Type.Text, "xhttpPaddingMethod"))
+    private val xhttpPaddingObfsMode = pbm.add(PreferenceBinding(Type.Bool, "xhttpPaddingObfsMode"))
     private val xhttpExtra = pbm.add(PreferenceBinding(Type.Text, "xhttpExtra"))
+    private val xhttpNoGrpcHeader = pbm.add(PreferenceBinding(Type.Bool, "xhttpNoGrpcHeader"))
+    private val xhttpNoSseHeader = pbm.add(PreferenceBinding(Type.Bool, "xhttpNoSseHeader"))
+    private val xhttpXmuxMaxConcurrency = pbm.add(PreferenceBinding(Type.Text, "xhttpXmuxMaxConcurrency"))
+    private val xhttpXmuxMaxConnections = pbm.add(PreferenceBinding(Type.Text, "xhttpXmuxMaxConnections"))
+    private val xhttpXmuxCMaxReuseTimes = pbm.add(PreferenceBinding(Type.Text, "xhttpXmuxCMaxReuseTimes"))
+    private val xhttpXmuxHMaxRequestTimes = pbm.add(PreferenceBinding(Type.Text, "xhttpXmuxHMaxRequestTimes"))
+    private val xhttpXmuxHMaxReusableSecs = pbm.add(PreferenceBinding(Type.Text, "xhttpXmuxHMaxReusableSecs"))
+    private val xhttpXmuxHKeepAlivePeriod = pbm.add(PreferenceBinding(Type.Text, "xhttpXmuxHKeepAlivePeriod"))
+    private val xhttpXPaddingKey = pbm.add(PreferenceBinding(Type.Text, "xhttpXPaddingKey"))
+    private val xhttpXPaddingHeader = pbm.add(PreferenceBinding(Type.Text, "xhttpXPaddingHeader"))
+    private val xhttpXPaddingPlacement = pbm.add(PreferenceBinding(Type.Text, "xhttpXPaddingPlacement"))
+    private val xhttpUplinkHttpMethod = pbm.add(PreferenceBinding(Type.Text, "xhttpUplinkHttpMethod"))
+    private val xhttpUplinkDataKey = pbm.add(PreferenceBinding(Type.Text, "xhttpUplinkDataKey"))
+    private val xhttpSessionKey = pbm.add(PreferenceBinding(Type.Text, "xhttpSessionKey"))
+    private val xhttpSessionKeyOld = pbm.add(PreferenceBinding(Type.Text, "xhttpSessionKeyOld"))
+    private val xhttpSessionIdTable = pbm.add(PreferenceBinding(Type.Text, "xhttpSessionIdTable"))
+    private val xhttpSessionIdLength = pbm.add(PreferenceBinding(Type.Text, "xhttpSessionIdLength"))
+    private val xhttpSeqPlacement = pbm.add(PreferenceBinding(Type.Text, "xhttpSeqPlacement"))
+    private val xhttpSeqKey = pbm.add(PreferenceBinding(Type.Text, "xhttpSeqKey"))
+    private val xhttpXPaddingBytes = pbm.add(PreferenceBinding(Type.Text, "xhttpXPaddingBytes"))
+    private val xhttpScMaxEachPostBytes = pbm.add(PreferenceBinding(Type.Text, "xhttpScMaxEachPostBytes"))
+    private val xhttpScMinPostsIntervalMs = pbm.add(PreferenceBinding(Type.Text, "xhttpScMinPostsIntervalMs"))
+    private val xhttpScMaxBufferedPosts = pbm.add(PreferenceBinding(Type.Text, "xhttpScMaxBufferedPosts"))
+    private val xhttpScStreamUpServerSecs = pbm.add(PreferenceBinding(Type.Text, "xhttpScStreamUpServerSecs"))
+    private val xhttpUplinkChunkSize = pbm.add(PreferenceBinding(Type.Text, "xhttpUplinkChunkSize"))
+    private val xhttpServerMaxHeaderBytes = pbm.add(PreferenceBinding(Type.Text, "xhttpServerMaxHeaderBytes"))
     private val vlessEncryption = pbm.add(PreferenceBinding(Type.Text, "vlessEncryption"))
 
     // KCP
@@ -70,8 +102,14 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
     private val kcpMtu = pbm.add(PreferenceBinding(Type.TextToInt, "kcpMtu"))
     private val kcpTti = pbm.add(PreferenceBinding(Type.TextToInt, "kcpTti"))
     private val kcpCwndMultiplier = pbm.add(PreferenceBinding(Type.TextToInt, "kcpCwndMultiplier"))
+    private val kcpMaxSendingWindow = pbm.add(PreferenceBinding(Type.TextToInt, "kcpMaxSendingWindow"))
 
     override fun StandardV2RayBean.init() {
+        this@StandardV2RaySettingsActivity.uuid.fieldName = "uuid"
+        this@StandardV2RaySettingsActivity.username.disable = this !is HttpBean
+        this@StandardV2RaySettingsActivity.password.disable = this !is HttpBean
+        this@StandardV2RaySettingsActivity.alterId.disable = this !is VMessBean
+
         if (this is TrojanBean) {
             this@StandardV2RaySettingsActivity.uuid.fieldName = "password"
             this@StandardV2RaySettingsActivity.password.disable = true
@@ -124,9 +162,25 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
         type.preference.isVisible = !isHttp
         uuid.preference.isVisible = !isHttp
         packetEncoding.preference.isVisible = isVmess || isVless
+        packetEncoding.preference.apply {
+            this as SimpleMenuPreference
+            if (isVless) {
+                setEntries(R.array.vless_packet_encoding_entry)
+                setEntryValues(R.array.vless_packet_encoding_value)
+            } else {
+                setEntries(R.array.packet_encoding_entry)
+                setEntryValues(R.array.int_array_3)
+            }
+        }
         alterId.preference.isVisible = isVmess
         encryption.preference.isVisible = isVmess || isVless
-        vlessEncryption.preference.isVisible = isVless
+        vlessEncryption.preference.apply {
+            isVisible = isVless
+            this as EditTextPreference
+            setOnBindEditTextListener { editText ->
+                editText.hint = getString(R.string.vless_encryption_hint)
+            }
+        }
         username.preference.isVisible = isHttp
         password.preference.isVisible = isHttp
 
@@ -142,7 +196,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
                 setEntries(R.array.xtls_flow_value)
                 setEntryValues(R.array.xtls_flow_value)
             } else {
-                setEntries(R.array.vmess_encryption_value)
+                setEntries(R.array.vmess_encryption_entry)
                 setEntryValues(R.array.vmess_encryption_value)
             }
         }
@@ -169,7 +223,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
 
         // Mux mode visibility control
         muxMode.preference.apply {
-            updateMuxMode(muxMode.readIntFromCache())
+            updateMuxMode(muxMode.readStringToIntFromCache())
             this as SimpleMenuPreference
             setOnPreferenceChangeListener { _, newValue ->
                 updateMuxMode((newValue as String).toInt())
@@ -179,7 +233,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
 
         muxBrutal.preference.apply {
             updateMuxBrutal(muxBrutal.readBoolFromCache())
-            this as SwitchPreference
+            this as MaterialSwitchPreference
             setOnPreferenceChangeListener { _, newValue ->
                 updateMuxBrutal(newValue as Boolean)
                 true
@@ -209,6 +263,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
         kcpMtu.preference.isVisible = false
         kcpTti.preference.isVisible = false
         kcpCwndMultiplier.preference.isVisible = false
+        kcpMaxSendingWindow.preference.isVisible = false
         wsCategory.isVisible = false
         xhttpCategory.isVisible = false
 
@@ -224,6 +279,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
                 kcpMtu.preference.isVisible = true
                 kcpTti.preference.isVisible = true
                 kcpCwndMultiplier.preference.isVisible = true
+                kcpMaxSendingWindow.preference.isVisible = true
             }
 
             "http" -> {
@@ -264,7 +320,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
     }
 
     private fun updateTls(tls: String) {
-        val isTLS = "tls" in tls
+        val isTLS = tls == "tls" || tls == "reality"
         securityCategory.isVisible = isTLS
         tlsCamouflageCategory.isVisible = isTLS
         echCategory.isVisible = isTLS

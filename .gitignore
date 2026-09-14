@@ -15,7 +15,14 @@ jniLibs/
 /library/libcore_build/
 .idea/deploymentTargetDropDown.xml
 /nkmr
+.cache
+subs.json
 
 # submodules
 /external
 .hev-build/
+
+# Local Pi runtime state
+.atl/
+.pi/
+.codex

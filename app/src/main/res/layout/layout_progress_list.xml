@@ -17,7 +17,18 @@
         android:id="@+id/now_testing"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:singleLine="true"
         android:textAlignment="center" />
+
+    <TextView
+        android:id="@+id/now_testing_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAlignment="center"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
     <TextView
         android:id="@+id/progress"

@@ -18,6 +18,15 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
         binding.stunTest.setOnClickListener {
             startActivity(Intent(requireContext(), StunActivity::class.java))
         }
+        binding.speedTest.setOnClickListener {
+            startActivity(Intent(requireContext(), SpeedTestActivity::class.java))
+        }
+        binding.rulesetMatch.setOnClickListener {
+            startActivity(Intent(requireContext(), RuleSetMatchActivity::class.java))
+        }
+        binding.cellularNetwork.setOnClickListener {
+            startActivity(Intent(requireContext(), CellularNetworkActivity::class.java))
+        }
     }
 
 }

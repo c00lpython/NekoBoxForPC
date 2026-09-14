@@ -1,18 +1,23 @@
 package libcore
 
 import (
+	"errors"
 	"fmt"
 	"libcore/device"
+	"libcore/masterdnsvpnbridge"
+	"libcore/protect"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 	_ "unsafe"
 
 	"log"
 
 	"github.com/matsuridayo/libneko/neko_common"
 	"github.com/matsuridayo/libneko/neko_log"
+	sblog "github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/nekoutils"
 	"github.com/sagernet/sing-box/option"
 	"golang.org/x/sys/unix"
@@ -20,6 +25,27 @@ import (
 
 //go:linkname resourcePaths github.com/sagernet/sing-box/constant.resourcePaths
 var resourcePaths []string
+var protectPath = "protect_path"
+var workingPath string
+var tempPath string
+
+var (
+	assetExtractionAccess sync.RWMutex
+	assetExtractionDone   = closedSignal()
+)
+
+func closedSignal() chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
+}
+
+func waitForAssetExtraction() {
+	assetExtractionAccess.RLock()
+	done := assetExtractionDone
+	assetExtractionAccess.RUnlock()
+	<-done
+}
 
 func NekoLogPrintln(s string) {
 	log.Println(s)
@@ -29,8 +55,20 @@ func NekoLogClear() {
 	neko_log.LogWriter.Truncate()
 }
 
-func ForceGc() {
-	go debug.FreeOSMemory()
+func parseLogLevel(level string) (sblog.Level, error) {
+	parsedLevel, err := sblog.ParseLevel(level)
+	if err != nil {
+		return 0, fmt.Errorf("parse log level: %w", err)
+	}
+	return parsedLevel, nil
+}
+
+func SetLogLevel(level string, enabled bool) error {
+	if _, err := parseLogLevel(level); err != nil {
+		return err
+	}
+	neko_log.SetLogEnabled(enabled)
+	return nil
 }
 
 func InitCore(process, cachePath, internalAssets, externalAssets string,
@@ -38,18 +76,46 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 	if1 NB4AInterface, if2 BoxPlatformInterface, if3 LocalDNSTransport,
 ) {
 	defer device.DeferPanicToError("InitCore", func(err error) { log.Println(err) })
-	isBgProcess = strings.HasSuffix(process, ":bg")
+	backgroundProcess := strings.HasSuffix(process, ":bg")
+	isBgProcess = backgroundProcess
+	assetExtractionAccess.Lock()
+	if backgroundProcess {
+		assetExtractionDone = make(chan struct{})
+	} else {
+		assetExtractionDone = closedSignal()
+	}
+	extractionDone := assetExtractionDone
+	assetExtractionAccess.Unlock()
 
 	neko_common.RunMode = neko_common.RunMode_NekoBoxForAndroid
 	intfNB4A = if1
+	masterdnsvpnbridge.SetReporter(func(found int32, total int32, ready bool) {
+		if intfNB4A != nil {
+			intfNB4A.MasterDnsVPNResolverProgress(found, total, ready)
+		}
+	})
+	masterdnsvpnbridge.SetFailureReporter(func(noWorkingDNS bool, message string) {
+		if intfNB4A != nil {
+			intfNB4A.MasterDnsVPNStartupFailed(noWorkingDNS, message)
+		}
+	})
 	intfBox = if2
 	useProcfs = intfBox.UseProcFS()
 	gLocalDNSTransport = newPlatformTransport(if3, "", option.LocalDNSServerOptions{})
+	protect.SetProtector(func(fd int) error {
+		if !isBgProcess {
+			return sendFdToProtect(fd, protectPath)
+		}
+		return intfBox.AutoDetectInterfaceControl(int32(fd))
+	})
 
 	// Working dir
 	tmp := filepath.Join(cachePath, "../no_backup")
 	os.MkdirAll(tmp, 0755)
 	os.Chdir(tmp)
+	protectPath = filepath.Join(tmp, "protect_path")
+	workingPath = tmp
+	tempPath = cachePath
 
 	// sing-box fs
 	resourcePaths = append(resourcePaths, externalAssets)
@@ -57,10 +123,8 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 	internalAssetsPath = internalAssets
 
 	// Set up log
-	if maxLogSizeKb < 50 {
-		maxLogSizeKb = 50
-	}
-	neko_log.LogWriterDisable = !logEnable
+	maxLogSizeKb = max(maxLogSizeKb, 10)
+	neko_log.SetLogEnabled(logEnable)
 	neko_log.TruncateOnStart = isBgProcess
 	neko_log.SetupLog(int(maxLogSizeKb)*1024, filepath.Join(cachePath, "neko.log"))
 
@@ -70,27 +134,29 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 	// Set up some component
 	go func() {
 		defer device.DeferPanicToError("InitCore-go", func(err error) { log.Println(err) })
+		if backgroundProcess {
+			defer close(extractionDone)
+		}
 		device.GoDebug(process)
 
-		// certs
-		pem, err := os.ReadFile(externalAssetsPath + "ca.pem")
-		if err == nil {
-			updateRootCACerts(pem)
-		}
-
 		// bg
-		if isBgProcess {
-			extractAssets()
+		if backgroundProcess && extractAssets() {
+			debug.FreeOSMemory()
 		}
 	}()
 }
 
-func sendFdToProtect(fd int, path string) error {
+func sendFdToProtect(fd int, path string) (err error) {
+	if path == "" {
+		path = protectPath
+	}
 	socketFd, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return fmt.Errorf("failed to create unix socket: %w", err)
 	}
-	defer unix.Close(socketFd)
+	defer func() {
+		err = errors.Join(err, unix.Close(socketFd))
+	}()
 
 	var timeout unix.Timeval
 	timeout.Usec = 100 * 1000

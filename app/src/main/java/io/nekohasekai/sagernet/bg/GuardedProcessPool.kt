@@ -121,4 +121,9 @@ class GuardedProcessPool(private val onFatal: suspend (IOException) -> Unit) : C
         cancel()
         coroutineContext[Job]!!.also { job -> scope.launch { job.cancelAndJoin() } }
     }
+
+    suspend fun closeAndJoin() {
+        cancel()
+        coroutineContext[Job]!!.cancelAndJoin()
+    }
 }

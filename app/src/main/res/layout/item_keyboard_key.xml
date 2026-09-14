@@ -22,6 +22,7 @@
     android:background="?selectableItemBackground"
     android:gravity="center"
     android:paddingBottom="2dp"
+    android:textColor="?attr/colorOnSurface"
     android:textSize="16sp"
     android:typeface="monospace"
     tools:text="{" />

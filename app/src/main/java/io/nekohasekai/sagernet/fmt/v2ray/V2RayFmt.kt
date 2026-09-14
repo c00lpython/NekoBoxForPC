@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.fmt.v2ray
 import android.text.TextUtils
 import com.google.gson.Gson
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.fmt.applySharedTLSOptions
 import io.nekohasekai.sagernet.fmt.http.HttpBean
 import io.nekohasekai.sagernet.fmt.trojan.TrojanBean
 import io.nekohasekai.sagernet.ktx.*
@@ -11,11 +12,367 @@ import moe.matsuri.nb4a.utils.NGUtil
 import moe.matsuri.nb4a.utils.listByLineOrComma
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import org.json.JSONArray
 import org.json.JSONObject
 
 private val supportedKcpHeaderType = arrayOf(
     "none", "srtp", "utp", "wechat-video", "dtls", "wireguard", "dns"
 )
+
+private fun normalizePacketEncoding(value: String?): Int? {
+    return when (value?.trim()?.lowercase()) {
+        "packet", "packetaddr" -> StandardV2RayBean.PACKET_ENCODING_PACKETADDR
+        "xudp" -> StandardV2RayBean.PACKET_ENCODING_XUDP
+        "", "none", "0", "false", "off", "disabled" -> StandardV2RayBean.PACKET_ENCODING_NONE
+        else -> null
+    }
+}
+
+private fun normalizeXudpParameter(value: String?): Int? {
+    return when (value?.trim()?.lowercase()) {
+        "1", "true", "on", "yes", "xudp" -> StandardV2RayBean.PACKET_ENCODING_XUDP
+        "", "0", "false", "off", "no", "none", "disabled" -> StandardV2RayBean.PACKET_ENCODING_NONE
+        else -> null
+    }
+}
+
+internal fun normalizeUTLSFingerprint(value: String): String {
+    return value.trim().lowercase().removePrefix("hello")
+}
+
+/** Builds an xmux JSONObject from bean Tier-2 xmux fields, or null if none are set. */
+private fun buildXmuxJsonObject(bean: StandardV2RayBean): JSONObject? {
+    val obj = JSONObject()
+    bean.xhttpXmuxMaxConcurrency?.takeIf { it.isNotBlank() }?.let { obj.put("max_concurrency", it) }
+    bean.xhttpXmuxMaxConnections?.takeIf { it.isNotBlank() }?.let { obj.put("max_connections", it) }
+    bean.xhttpXmuxCMaxReuseTimes?.takeIf { it.isNotBlank() }?.let { obj.put("c_max_reuse_times", it) }
+    bean.xhttpXmuxHMaxRequestTimes?.takeIf { it.isNotBlank() }?.let { obj.put("h_max_request_times", it) }
+    bean.xhttpXmuxHMaxReusableSecs?.takeIf { it.isNotBlank() }?.let { obj.put("h_max_reusable_secs", it) }
+    bean.xhttpXmuxHKeepAlivePeriod?.trim()?.toLongOrNull()?.let { obj.put("h_keep_alive_period", it) }
+    return if (obj.length() > 0) obj else null
+}
+
+private fun JSONObject.mergeFrom(other: JSONObject) {
+    other.keys().forEach { key -> put(key, other.get(key)) }
+}
+
+private fun String?.hasXhttpExtraValue(): Boolean {
+    return !isNullOrBlank() && !trim().equals("null", ignoreCase = true)
+}
+
+private fun String.hasInvalidPercentEncoding(): Boolean {
+    forEachIndexed { index, c ->
+        if (c == '%' && (index + 2 >= length ||
+                    !this[index + 1].isDigitOrHexLetter() ||
+                    !this[index + 2].isDigitOrHexLetter())
+        ) {
+            return true
+        }
+    }
+    return false
+}
+
+private fun Char.isDigitOrHexLetter(): Boolean {
+    return this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
+}
+
+private fun String.hasUnencodedFragmentCharacters(): Boolean {
+    return any { it.code <= 0x20 || it.code >= 0x7F || it == '[' || it == ']' } ||
+            hasInvalidPercentEncoding()
+}
+
+private fun parseV2RayName(link: String, url: HttpUrl): String? {
+    val rawFragment = link.substringAfter('#', missingDelimiterValue = "")
+    if (rawFragment.isEmpty()) return url.fragment
+    if (!rawFragment.hasUnencodedFragmentCharacters()) return url.fragment
+    return rawFragment.unUrlSafe()
+}
+
+private fun normalizeV2RayLinkForHttpUrl(link: String): String {
+    val url = link.replace("vmess://", "https://").replace("vless://", "https://")
+    val fragmentIndex = url.indexOf('#')
+    if (fragmentIndex < 0) return url
+
+    val rawFragment = url.substring(fragmentIndex + 1)
+    if (rawFragment.isEmpty() || !rawFragment.hasUnencodedFragmentCharacters()) return url
+    return url.substring(0, fragmentIndex + 1) + rawFragment.urlSafe()
+}
+
+fun xhttpHeadersToMap(headers: String?): LinkedHashMap<String, String> {
+    return headers
+        .orEmpty()
+        .lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .mapNotNull { line ->
+            val separatorIndex = line.indexOf(':')
+            if (separatorIndex <= 0) return@mapNotNull null
+            val name = line.substring(0, separatorIndex).trim()
+            val value = line.substring(separatorIndex + 1).trim()
+            if (name.isEmpty()) return@mapNotNull null
+            name to value
+        }
+        .toMap(LinkedHashMap())
+}
+
+fun xhttpHeadersToJsonObject(headers: String?): JSONObject? {
+    val headersMap = xhttpHeadersToMap(headers)
+    if (headersMap.isEmpty()) return null
+    return JSONObject().apply {
+        headersMap.forEach { (name, value) -> put(name, value) }
+    }
+}
+
+fun jsonObjectToXhttpHeaders(headers: JSONObject): String {
+    return headers.keys().asSequence()
+        .map { key -> "$key: ${headers.optString(key)}" }
+        .joinToString("\n")
+}
+
+fun mapToXhttpHeaders(headers: Map<*, *>): String {
+    return headers.entries.asSequence()
+        .mapNotNull { (key, value) ->
+            val name = key?.toString()?.trim().orEmpty()
+            if (name.isEmpty() || value == null) return@mapNotNull null
+            "$name: ${value.toString().trim()}"
+        }
+        .joinToString("\n")
+}
+
+fun applyClashXhttpOptions(bean: StandardV2RayBean, xhttpOpts: Map<*, *>) {
+    xhttpOpts["host"]?.toString()?.let {
+        bean.host = it
+    }
+    xhttpOpts["path"]?.toString()?.let {
+        bean.path = it
+    }
+    xhttpOpts["mode"]?.toString()?.let {
+        bean.xhttpMode = when (it) {
+            "auto", "packet-up", "stream-up", "stream-one" -> it
+            "" -> "auto"
+            else -> bean.xhttpMode
+        }
+    }
+    (xhttpOpts["headers"] as? Map<*, *>)?.let { headers ->
+        bean.xhttpHeaders = mapToXhttpHeaders(headers)
+    }
+
+    val extra = JSONObject()
+    putClashXhttpField(extra, xhttpOpts, "no-grpc-header", "no_grpc_header")
+    putClashXhttpField(extra, xhttpOpts, "no-sse-header", "no_sse_header")
+    putClashXhttpField(extra, xhttpOpts, "x-padding-bytes", "x_padding_bytes")
+    putClashXhttpField(extra, xhttpOpts, "sc-max-each-post-bytes", "sc_max_each_post_bytes")
+    putClashXhttpField(extra, xhttpOpts, "sc-min-posts-interval-ms", "sc_min_posts_interval_ms")
+    putClashXhttpField(extra, xhttpOpts, "sc-max-buffered-posts", "sc_max_buffered_posts")
+    putClashXhttpField(extra, xhttpOpts, "sc-stream-up-server-secs", "sc_stream_up_server_secs")
+    putClashXhttpField(extra, xhttpOpts, "server-max-header-bytes", "server_max_header_bytes")
+    putClashXhttpField(extra, xhttpOpts, "x-padding-obfs-mode", "x_padding_obfs_mode")
+    putClashXhttpField(extra, xhttpOpts, "x-padding-key", "x_padding_key")
+    putClashXhttpField(extra, xhttpOpts, "x-padding-header", "x_padding_header")
+    putClashXhttpField(extra, xhttpOpts, "x-padding-placement", "x_padding_placement")
+    putClashXhttpField(extra, xhttpOpts, "x-padding-method", "x_padding_method")
+    putClashXhttpField(extra, xhttpOpts, "uplink-http-method", "uplink_http_method")
+    putClashXhttpField(extra, xhttpOpts, "session-placement", "session_placement")
+    putClashXhttpField(extra, xhttpOpts, "session-key", "session_key")
+    putClashXhttpField(extra, xhttpOpts, "seq-placement", "seq_placement")
+    putClashXhttpField(extra, xhttpOpts, "seq-key", "seq_key")
+    putClashXhttpField(extra, xhttpOpts, "uplink-data-placement", "uplink_data_placement")
+    putClashXhttpField(extra, xhttpOpts, "uplink-data-key", "uplink_data_key")
+    putClashXhttpField(extra, xhttpOpts, "uplink-chunk-size", "uplink_chunk_size")
+    putClashXhttpReuseSettings(extra, xhttpOpts["reuse-settings"] as? Map<*, *>)
+    putClashXhttpDownloadSettings(extra, xhttpOpts["download-settings"] as? Map<*, *>)
+
+    if (extra.length() > 0) {
+        bean.xhttpExtra = XhttpExtraConverter.extractSupportedToGui(bean, extra.toString(2))
+    }
+}
+
+private fun putClashXhttpField(target: JSONObject, source: Map<*, *>, clashKey: String, singBoxKey: String) {
+    if (!source.containsKey(clashKey)) return
+    source[clashKey]?.let {
+        target.put(singBoxKey, it.toJsonValue())
+    }
+}
+
+private fun putClashXhttpReuseSettings(target: JSONObject, reuseSettings: Map<*, *>?) {
+    val xmux = clashXhttpReuseSettingsToJson(reuseSettings) ?: return
+    target.put("xmux", xmux)
+}
+
+private fun clashXhttpReuseSettingsToJson(reuseSettings: Map<*, *>?): JSONObject? {
+    if (reuseSettings == null) return null
+    val xmux = JSONObject()
+    putClashXhttpField(xmux, reuseSettings, "max-connections", "max_connections")
+    putClashXhttpField(xmux, reuseSettings, "max-concurrency", "max_concurrency")
+    putClashXhttpField(xmux, reuseSettings, "c-max-reuse-times", "c_max_reuse_times")
+    putClashXhttpField(xmux, reuseSettings, "h-max-request-times", "h_max_request_times")
+    putClashXhttpField(xmux, reuseSettings, "h-max-reusable-secs", "h_max_reusable_secs")
+    putClashXhttpField(xmux, reuseSettings, "h-keep-alive-period", "h_keep_alive_period")
+    return if (xmux.length() > 0) xmux else null
+}
+
+private fun putClashXhttpDownloadSettings(target: JSONObject, downloadSettings: Map<*, *>?) {
+    if (downloadSettings == null) return
+    val download = JSONObject()
+    putClashXhttpField(download, downloadSettings, "host", "host")
+    putClashXhttpField(download, downloadSettings, "path", "path")
+    putClashXhttpField(download, downloadSettings, "server", "server")
+    putClashXhttpField(download, downloadSettings, "port", "server_port")
+    (downloadSettings["headers"] as? Map<*, *>)?.takeIf { it.isNotEmpty() }?.let { headers ->
+        download.put("headers", headers.toJsonValue())
+    }
+    clashXhttpReuseSettingsToJson(downloadSettings["reuse-settings"] as? Map<*, *>)?.let {
+        download.put("xmux", it)
+    }
+    clashXhttpDownloadTlsToJson(downloadSettings)?.let {
+        download.put("tls", it)
+    }
+    if (download.length() > 0) {
+        target.put("download", download)
+    }
+}
+
+private fun clashXhttpDownloadTlsToJson(downloadSettings: Map<*, *>): JSONObject? {
+    val realitySettings = downloadSettings["reality-opts"] as? Map<*, *>
+    val tlsEnabled = downloadSettings["tls"].toBooleanOrNull() == true || realitySettings != null
+    if (!tlsEnabled) return null
+
+    val tls = JSONObject().put("enabled", true)
+    (downloadSettings["servername"] ?: downloadSettings["sni"])?.toString()?.takeIf { it.isNotBlank() }?.let {
+        tls.put("server_name", it)
+    }
+    downloadSettings["alpn"]?.let {
+        tls.put("alpn", it.toJsonValue())
+    }
+    downloadSettings["skip-cert-verify"]?.toBooleanOrNull()?.let {
+        tls.put("insecure", it)
+    }
+    downloadSettings["client-fingerprint"]?.toString()?.takeIf { it.isNotBlank() }?.let {
+        tls.put("utls", JSONObject().put("enabled", true).put("fingerprint", it))
+    }
+    realitySettings?.let { realityOpts ->
+        val reality = JSONObject().put("enabled", true)
+        putClashXhttpField(reality, realityOpts, "public-key", "public_key")
+        putClashXhttpField(reality, realityOpts, "short-id", "short_id")
+        tls.put("reality", reality)
+    }
+    return tls
+}
+
+private fun Any?.toBooleanOrNull(): Boolean? {
+    return when (this) {
+        is Boolean -> this
+        is Number -> toInt() != 0
+        is String -> when {
+            equals("true", ignoreCase = true) -> true
+            equals("false", ignoreCase = true) -> false
+            this == "1" -> true
+            this == "0" -> false
+            else -> null
+        }
+        else -> null
+    }
+}
+
+private fun Any.toJsonValue(): Any {
+    return when (this) {
+        is Map<*, *> -> JSONObject().also { json ->
+            entries.forEach { (key, value) ->
+                if (key != null && value != null) json.put(key.toString(), value.toJsonValue())
+            }
+        }
+        is Iterable<*> -> JSONArray().also { array ->
+            forEach { value ->
+                if (value != null) array.put(value.toJsonValue())
+            }
+        }
+        is Array<*> -> JSONArray().also { array ->
+            forEach { value ->
+                if (value != null) array.put(value.toJsonValue())
+            }
+        }
+        else -> this
+    }
+}
+
+private fun applyGuiXhttpFields(
+    bean: StandardV2RayBean,
+    json: JSONObject,
+) {
+    xhttpHeadersToJsonObject(bean.xhttpHeaders)?.let {
+        json.put("headers", it)
+    }
+    if (bean.xhttpUplinkDataPlacement?.isNotBlank() == true)
+        json.put("uplink_data_placement", bean.xhttpUplinkDataPlacement)
+    if (bean.xhttpSessionPlacement?.isNotBlank() == true)
+        json.put("session_id_placement", bean.xhttpSessionPlacement)
+    if (bean.xhttpSessionPlacementOld?.isNotBlank() == true)
+        json.put("session_placement", bean.xhttpSessionPlacementOld)
+    if (bean.xhttpPaddingMethod?.isNotBlank() == true)
+        json.put("x_padding_method", bean.xhttpPaddingMethod)
+    if (bean.xhttpPaddingObfsMode == true)
+        json.put("x_padding_obfs_mode", true)
+    if (bean.xhttpNoGrpcHeader == true)
+        json.put("no_grpc_header", true)
+    if (bean.xhttpNoSseHeader == true)
+        json.put("no_sse_header", true)
+    if (bean.xhttpXPaddingBytes?.isNotBlank() == true)
+        json.put("x_padding_bytes", bean.xhttpXPaddingBytes)
+    if (bean.xhttpScMaxEachPostBytes?.isNotBlank() == true)
+        json.put("sc_max_each_post_bytes", bean.xhttpScMaxEachPostBytes)
+    if (bean.xhttpScMinPostsIntervalMs?.isNotBlank() == true)
+        json.put("sc_min_posts_interval_ms", bean.xhttpScMinPostsIntervalMs)
+    bean.xhttpScMaxBufferedPosts?.trim()?.toLongOrNull()?.let {
+        json.put("sc_max_buffered_posts", it)
+    }
+    if (bean.xhttpScStreamUpServerSecs?.isNotBlank() == true)
+        json.put("sc_stream_up_server_secs", bean.xhttpScStreamUpServerSecs)
+    if (bean.xhttpUplinkChunkSize?.isNotBlank() == true)
+        json.put("uplink_chunk_size", bean.xhttpUplinkChunkSize)
+    bean.xhttpServerMaxHeaderBytes?.trim()?.toIntOrNull()?.let {
+        json.put("server_max_header_bytes", it)
+    }
+    if (bean.xhttpXPaddingKey?.isNotBlank() == true)
+        json.put("x_padding_key", bean.xhttpXPaddingKey)
+    if (bean.xhttpXPaddingHeader?.isNotBlank() == true)
+        json.put("x_padding_header", bean.xhttpXPaddingHeader)
+    if (bean.xhttpXPaddingPlacement?.isNotBlank() == true)
+        json.put("x_padding_placement", bean.xhttpXPaddingPlacement)
+    if (bean.xhttpUplinkHttpMethod?.isNotBlank() == true)
+        json.put("uplink_http_method", bean.xhttpUplinkHttpMethod)
+    if (bean.xhttpUplinkDataKey?.isNotBlank() == true)
+        json.put("uplink_data_key", bean.xhttpUplinkDataKey)
+    if (bean.xhttpSessionKey?.isNotBlank() == true)
+        json.put("session_id_key", bean.xhttpSessionKey)
+    if (bean.xhttpSessionKeyOld?.isNotBlank() == true)
+        json.put("session_key", bean.xhttpSessionKeyOld)
+    if (bean.xhttpSessionIdTable?.isNotBlank() == true)
+        json.put("session_id_table", bean.xhttpSessionIdTable)
+    if (bean.xhttpSessionIdLength?.isNotBlank() == true)
+        json.put("session_id_length", bean.xhttpSessionIdLength)
+    if (bean.xhttpSeqPlacement?.isNotBlank() == true)
+        json.put("seq_placement", bean.xhttpSeqPlacement)
+    if (bean.xhttpSeqKey?.isNotBlank() == true)
+        json.put("seq_key", bean.xhttpSeqKey)
+    buildXmuxJsonObject(bean)?.let { guiXmux ->
+        val mergedXmux = json.optJSONObject("xmux") ?: JSONObject()
+        mergedXmux.mergeFrom(guiXmux)
+        json.put("xmux", mergedXmux)
+    }
+}
+
+private fun buildXhttpExtraForLink(bean: StandardV2RayBean): String {
+    val merged = JSONObject()
+    if (bean.xhttpExtra.hasXhttpExtraValue()) {
+        runCatching {
+            merged.mergeFrom(JSONObject(XhttpExtraConverter.xrayToSingBox(bean.xhttpExtra)))
+        }.onFailure {
+            return XhttpExtraConverter.singBoxToXray(bean.xhttpExtra)
+        }
+    }
+    applyGuiXhttpFields(bean, merged)
+    return if (merged.length() == 0) "" else XhttpExtraConverter.singBoxToXray(merged.toString())
+}
 
 data class VmessQRCode(
     var v: String = "",
@@ -36,7 +393,7 @@ data class VmessQRCode(
 )
 
 fun StandardV2RayBean.isTLS(): Boolean {
-    return security == "tls"
+    return security == "tls" || security == "reality"
 }
 
 fun StandardV2RayBean.setTLS(boolean: Boolean) {
@@ -46,7 +403,7 @@ fun StandardV2RayBean.setTLS(boolean: Boolean) {
 fun parseV2Ray(link: String): StandardV2RayBean {
     // Try parse stupid formats first
 
-    if (!link.contains("?")) {
+    if (link.startsWith("vmess://") && !link.contains("?")) {
         try {
             return parseV2RayN(link)
         } catch (e: Exception) {
@@ -54,22 +411,25 @@ fun parseV2Ray(link: String): StandardV2RayBean {
         }
     }
 
-    try {
-        return tryResolveVmess4Kitsunebi(link)
-    } catch (e: Exception) {
-        Logs.i("try Kitsunebi: " + e.readableMessage)
+    if (link.startsWith("vmess://")) {
+        try {
+            return tryResolveVmess4Kitsunebi(link)
+        } catch (e: Exception) {
+            Logs.i("try Kitsunebi: " + e.readableMessage)
+        }
     }
 
     // "std" format
 
     val bean = VMessBean().apply { if (link.startsWith("vless://")) alterId = -1 }
-    val url = link.replace("vmess://", "https://").replace("vless://", "https://").toHttpUrl()
+    val url = normalizeV2RayLinkForHttpUrl(link).toHttpUrl()
+    val name = parseV2RayName(link, url)
 
     if (url.password.isNotBlank()) {
         // https://github.com/v2fly/v2fly-github-io/issues/26 (rarely use)
         bean.serverAddress = url.host
         bean.serverPort = url.port
-        bean.name = url.fragment
+        bean.name = name
 
         var protocol = url.username
         bean.type = protocol
@@ -141,24 +501,24 @@ fun parseV2Ray(link: String): StandardV2RayBean {
                 url.queryParameter("mode")?.let {
                     bean.xhttpMode = it
                 }
-                url.queryParameter("extra")?.let {
-                    bean.xhttpExtra = XhttpExtraConverter.xrayToSingBox(it)
+                url.queryParameter("extra")?.takeIf { it.hasXhttpExtraValue() }?.let {
+                    bean.xhttpExtra = XhttpExtraConverter.extractSupportedToGui(bean, it)
                 }
             }
         }
     } else {
         // also vless format
-        bean.parseDuckSoft(url)
+        bean.parseDuckSoft(url, name)
     }
 
     return bean
 }
 
 // https://github.com/XTLS/Xray-core/issues/91
-fun StandardV2RayBean.parseDuckSoft(url: HttpUrl) {
+fun StandardV2RayBean.parseDuckSoft(url: HttpUrl, resolvedName: String? = url.fragment) {
     serverAddress = url.host
     serverPort = url.port
-    name = url.fragment
+    name = resolvedName
 
     if (this is TrojanBean) {
         password = url.username
@@ -202,6 +562,9 @@ fun StandardV2RayBean.parseDuckSoft(url: HttpUrl) {
             }
             url.queryParameter("sid")?.let {
                 realityShortId = it
+            }
+            if (!realityPubKey.isNullOrBlank()) {
+                security = "reality"
             }
         }
     }
@@ -278,8 +641,8 @@ fun StandardV2RayBean.parseDuckSoft(url: HttpUrl) {
             url.queryParameter("mode")?.let {
                 xhttpMode = it
             }
-            url.queryParameter("extra")?.let {
-                xhttpExtra = XhttpExtraConverter.xrayToSingBox(it)
+            url.queryParameter("extra")?.takeIf { it.hasXhttpExtraValue() }?.let {
+                xhttpExtra = XhttpExtraConverter.extractSupportedToGui(this, it)
             }
         }
     }
@@ -291,10 +654,16 @@ fun StandardV2RayBean.parseDuckSoft(url: HttpUrl) {
         }
     }
 
-    url.queryParameter("packetEncoding")?.let {
-        when (it) {
-            "packet" -> packetEncoding = 1
-            "xudp" -> packetEncoding = 2
+    val packetEncodingParameter = url.queryParameter("packetEncoding")
+    val parsedPacketEncoding = normalizePacketEncoding(packetEncodingParameter)
+    if (parsedPacketEncoding != null) {
+        packetEncoding = parsedPacketEncoding
+    } else if (isVLESS) {
+        packetEncoding = if (packetEncodingParameter == null) {
+            normalizeXudpParameter(url.queryParameter("xudp"))
+                ?: StandardV2RayBean.PACKET_ENCODING_NOT_SPECIFIED
+        } else {
+            StandardV2RayBean.PACKET_ENCODING_NOT_SPECIFIED
         }
     }
 
@@ -312,7 +681,7 @@ fun StandardV2RayBean.parseDuckSoft(url: HttpUrl) {
     }
 
     url.queryParameter("fp")?.let {
-        utlsFingerprint = it
+        utlsFingerprint = normalizeUTLSFingerprint(it)
     }
 }
 
@@ -398,6 +767,10 @@ fun parseV2RayN(link: String): VMessBean {
     val headerType = vmessQRCode.type
 
     when (bean.type) {
+        "kcp" -> {
+            bean.mKcpSeed = vmessQRCode.path
+            bean.headerType = headerType.takeIf { it.isNotBlank() } ?: "none"
+        }
         "tcp" -> {
             if (headerType == "http") {
                 bean.type = "http"
@@ -472,6 +845,10 @@ fun VMessBean.toV2rayN(): String {
                     net = "tcp"
                 }
             }
+            "kcp" -> {
+                type = bean.headerType
+                path = bean.mKcpSeed
+            }
         }
 
         if (isTLS()) {
@@ -492,7 +869,7 @@ fun VMessBean.toV2rayN(): String {
 
 fun StandardV2RayBean.toUriVMessVLESSTrojan(isTrojan: Boolean): String {
     // VMess
-    if (this is VMessBean && !isVLESS) {
+    if (this is VMessBean && !isVLESS && type != "xhttp") {
         return toV2rayN()
     }
 
@@ -512,6 +889,8 @@ fun StandardV2RayBean.toUriVMessVLESSTrojan(isTrojan: Boolean): String {
         }
 
         if (encryption != "auto") builder.addQueryParameter("flow", encryption)
+    } else if (this is VMessBean && encryption.isNotBlank() && encryption != "auto") {
+        builder.addQueryParameter("encryption", encryption)
     }
 
     when (type) {
@@ -564,8 +943,9 @@ fun StandardV2RayBean.toUriVMessVLESSTrojan(isTrojan: Boolean): String {
             if (xhttpMode.isNotBlank()) {
                 builder.addQueryParameter("mode", xhttpMode)
             }
-            if (xhttpExtra.isNotBlank()) {
-                builder.addQueryParameter("extra", XhttpExtraConverter.singBoxToXray(xhttpExtra))
+            val linkExtra = buildXhttpExtraForLink(this)
+            if (linkExtra.isNotBlank()) {
+                builder.addQueryParameter("extra", linkExtra)
             }
         }
 
@@ -576,10 +956,11 @@ fun StandardV2RayBean.toUriVMessVLESSTrojan(isTrojan: Boolean): String {
         }
     }
 
-    if (security.isNotBlank() && security != "none") {
-        builder.addQueryParameter("security", security)
-        when (security) {
-            "tls" -> {
+    val effectiveSecurity = security.takeIf { it.isNotBlank() && (it != "none" || isTrojan) } ?: ""
+    if (effectiveSecurity.isNotBlank()) {
+        builder.addQueryParameter("security", effectiveSecurity)
+        when (effectiveSecurity) {
+            "tls", "reality" -> {
                 if (sni.isNotBlank()) {
                     builder.addQueryParameter("sni", sni)
                 }
@@ -605,11 +986,15 @@ fun StandardV2RayBean.toUriVMessVLESSTrojan(isTrojan: Boolean): String {
     }
 
     when (packetEncoding) {
-        1 -> {
+        StandardV2RayBean.PACKET_ENCODING_NONE -> {
+            if (isVLESS) builder.addQueryParameter("packetEncoding", "none")
+        }
+
+        StandardV2RayBean.PACKET_ENCODING_PACKETADDR -> {
             builder.addQueryParameter("packetEncoding", "packetaddr")
         }
 
-        2 -> {
+        StandardV2RayBean.PACKET_ENCODING_XUDP -> {
             builder.addQueryParameter("packetEncoding", "xudp")
         }
     }
@@ -618,7 +1003,12 @@ fun StandardV2RayBean.toUriVMessVLESSTrojan(isTrojan: Boolean): String {
         builder.encodedFragment(name.urlSafe())
     }
 
-    return builder.toLink(if (isTrojan) "trojan" else "vless")
+    val scheme = when {
+        isTrojan -> "trojan"
+        this is VMessBean && !isVLESS -> "vmess"
+        else -> "vless"
+    }
+    return builder.toLink(scheme)
 }
 
 fun buildSingBoxOutboundStreamSettings(bean: StandardV2RayBean): V2RayTransportOptions? {
@@ -667,6 +1057,9 @@ fun buildSingBoxOutboundStreamSettings(bean: StandardV2RayBean): V2RayTransportO
                 if (bean.kcpCwndMultiplier != null && bean.kcpCwndMultiplier!! > 0) {
                     cwnd_multiplier = bean.kcpCwndMultiplier!!
                 }
+                if (bean.kcpMaxSendingWindow != null && bean.kcpMaxSendingWindow!! > 0) {
+                    max_sending_window = bean.kcpMaxSendingWindow!!
+                }
                 header_type = bean.headerType.takeIf { it.isNotBlank() } ?: "none"
                 if (bean.mKcpSeed.isNotBlank()) {
                     seed = bean.mKcpSeed
@@ -713,57 +1106,163 @@ fun buildSingBoxOutboundStreamSettings(bean: StandardV2RayBean): V2RayTransportO
                 host = bean.host.takeIf { it.isNotBlank() }
                 path = bean.path.takeIf { it.isNotBlank() } ?: "/"
             }
-            
+
             // Merge xhttpExtra JSON config if present
-            if (bean.xhttpExtra.isNotBlank()) {
+            if (bean.xhttpExtra.hasXhttpExtraValue()) {
                 try {
                     val gson = Gson()
                     // Convert base config to JSON
                     val baseJson = JSONObject(gson.toJson(baseConfig))
                     // Parse extra config
                     val extraJson = JSONObject(bean.xhttpExtra)
-                    // Merge extra fields into base config
+                    // Merge allowed extra fields into base config
                     val allowedKeys = arrayOf(
-                        "download",
-                        "xmux",
-                        "headers",
-                        "x_padding_bytes",
-                        "no_grpc_header",
-                        "no_sse_header",
-                        "sc_max_each_post_bytes",
-                        "sc_min_posts_interval_ms",
-                        "sc_max_buffered_posts",
-                        "sc_stream_up_server_secs",
+"download", "xmux", "x_padding_bytes", "no_grpc_header",
+                        "sc_max_each_post_bytes", "sc_min_posts_interval_ms",
+                        "no_sse_header", "sc_max_buffered_posts", "sc_stream_up_server_secs",
+                        "uplink_data_placement", "uplink_data_key", "uplink_chunk_size",
+                        "uplink_http_method", "domain_strategy", "trusted_x_forwarded_for", "headers",
+                        "session_placement", "session_key", "session_id_placement",
+                        "session_id_key", "session_id_table", "session_id_length",
+                        "seq_placement", "seq_key",
+                        "x_padding_obfs_mode", "x_padding_key", "x_padding_header",
+                        "x_padding_placement", "x_padding_method",
                         "server_max_header_bytes",
-                        "x_padding_obfs_mode",
-                        "x_padding_key",
-                        "x_padding_header",
-                        "x_padding_placement",
-                        "x_padding_method",
-                        "uplink_http_method",
-                        "session_placement",
-                        "session_key",
-                        "session_id_table",
-                        "session_id_length",
-                        "congestion_controller",
-                        "cwnd",
-                        "seq_placement",
-                        "seq_key",
-                        "uplink_data_placement",
-                        "uplink_data_key",
-                        "uplink_chunk_size"
+                        "congestion_controller", "cwnd"
                     )
                     allowedKeys.forEach { key ->
-                        if (extraJson.has(key)) {
+                        if (extraJson.has(key) && !extraJson.isNull(key)) {
                             baseJson.put(key, extraJson.get(key))
                         }
                     }
+                    applyGuiXhttpFields(bean, baseJson)
                     // Convert merged JSON back to object
                     return gson.fromJson(baseJson.toString(), V2RayTransportOptions_XHTTPOptions::class.java)
                 } catch (e: Exception) {
-                    // If parsing fails, return base config
+                    // If parsing fails, apply Tier-1 fields directly
                     e.printStackTrace()
+                    baseConfig.apply {
+                        xhttpHeadersToMap(bean.xhttpHeaders).takeIf { it.isNotEmpty() }?.let {
+                            headers = it
+                        }
+                        if (bean.xhttpUplinkDataPlacement?.isNotBlank() == true)
+                            uplink_data_placement = bean.xhttpUplinkDataPlacement
+                        if (bean.xhttpSessionPlacement?.isNotBlank() == true)
+                            session_id_placement = bean.xhttpSessionPlacement
+                        if (bean.xhttpSessionPlacementOld?.isNotBlank() == true)
+                            session_placement = bean.xhttpSessionPlacementOld
+                        if (bean.xhttpPaddingMethod?.isNotBlank() == true)
+                            x_padding_method = bean.xhttpPaddingMethod
+                        if (bean.xhttpPaddingObfsMode == true)
+                            x_padding_obfs_mode = true
+                        if (bean.xhttpNoGrpcHeader == true)
+                            no_grpc_header = com.google.gson.JsonPrimitive(true)
+                        if (bean.xhttpNoSseHeader == true)
+                            no_sse_header = com.google.gson.JsonPrimitive(true)
+                        if (bean.xhttpXPaddingBytes?.isNotBlank() == true)
+                            x_padding_bytes = com.google.gson.JsonPrimitive(bean.xhttpXPaddingBytes)
+                        if (bean.xhttpScMaxEachPostBytes?.isNotBlank() == true)
+                            sc_max_each_post_bytes = com.google.gson.JsonPrimitive(bean.xhttpScMaxEachPostBytes)
+                        if (bean.xhttpScMinPostsIntervalMs?.isNotBlank() == true)
+                            sc_min_posts_interval_ms = com.google.gson.JsonPrimitive(bean.xhttpScMinPostsIntervalMs)
+                        bean.xhttpScMaxBufferedPosts?.trim()?.toLongOrNull()?.let {
+                            sc_max_buffered_posts = com.google.gson.JsonPrimitive(it)
+                        }
+                        if (bean.xhttpScStreamUpServerSecs?.isNotBlank() == true)
+                            sc_stream_up_server_secs = com.google.gson.JsonPrimitive(bean.xhttpScStreamUpServerSecs)
+                        if (bean.xhttpUplinkChunkSize?.isNotBlank() == true)
+                            uplink_chunk_size = com.google.gson.JsonPrimitive(bean.xhttpUplinkChunkSize)
+                        bean.xhttpServerMaxHeaderBytes?.trim()?.toIntOrNull()?.let {
+                            server_max_header_bytes = it
+                        }
+                        if (bean.xhttpXPaddingKey?.isNotBlank() == true)
+                            x_padding_key = bean.xhttpXPaddingKey
+                        if (bean.xhttpXPaddingHeader?.isNotBlank() == true)
+                            x_padding_header = bean.xhttpXPaddingHeader
+                        if (bean.xhttpXPaddingPlacement?.isNotBlank() == true)
+                            x_padding_placement = bean.xhttpXPaddingPlacement
+                        if (bean.xhttpUplinkHttpMethod?.isNotBlank() == true)
+                            uplink_http_method = bean.xhttpUplinkHttpMethod
+                        if (bean.xhttpUplinkDataKey?.isNotBlank() == true)
+                            uplink_data_key = bean.xhttpUplinkDataKey
+                        if (bean.xhttpSessionKey?.isNotBlank() == true)
+                            session_id_key = bean.xhttpSessionKey
+                        if (bean.xhttpSessionKeyOld?.isNotBlank() == true)
+                            session_key = bean.xhttpSessionKeyOld
+                        if (bean.xhttpSessionIdTable?.isNotBlank() == true)
+                            session_id_table = bean.xhttpSessionIdTable
+                        if (bean.xhttpSessionIdLength?.isNotBlank() == true)
+                            session_id_length = com.google.gson.JsonPrimitive(bean.xhttpSessionIdLength)
+                        if (bean.xhttpSeqPlacement?.isNotBlank() == true)
+                            seq_placement = bean.xhttpSeqPlacement
+                        if (bean.xhttpSeqKey?.isNotBlank() == true)
+                            seq_key = bean.xhttpSeqKey
+                        buildXmuxJsonObject(bean)?.let {
+                            xmux = com.google.gson.JsonParser.parseString(it.toString())
+                        }
+                    }
                     return baseConfig
+                }
+            }
+            // No xhttpExtra: apply Tier-1/Tier-2 fields directly
+            baseConfig.apply {
+                xhttpHeadersToMap(bean.xhttpHeaders).takeIf { it.isNotEmpty() }?.let {
+                    headers = it
+                }
+                if (bean.xhttpUplinkDataPlacement?.isNotBlank() == true)
+                    uplink_data_placement = bean.xhttpUplinkDataPlacement
+                if (bean.xhttpSessionPlacement?.isNotBlank() == true)
+                    session_id_placement = bean.xhttpSessionPlacement
+                if (bean.xhttpSessionPlacementOld?.isNotBlank() == true)
+                    session_placement = bean.xhttpSessionPlacementOld
+                if (bean.xhttpPaddingMethod?.isNotBlank() == true)
+                    x_padding_method = bean.xhttpPaddingMethod
+                if (bean.xhttpPaddingObfsMode == true)
+                    x_padding_obfs_mode = true
+                if (bean.xhttpNoGrpcHeader == true)
+                    no_grpc_header = com.google.gson.JsonPrimitive(true)
+                if (bean.xhttpNoSseHeader == true)
+                    no_sse_header = com.google.gson.JsonPrimitive(true)
+                if (bean.xhttpXPaddingBytes?.isNotBlank() == true)
+                    x_padding_bytes = com.google.gson.JsonPrimitive(bean.xhttpXPaddingBytes)
+                if (bean.xhttpScMaxEachPostBytes?.isNotBlank() == true)
+                    sc_max_each_post_bytes = com.google.gson.JsonPrimitive(bean.xhttpScMaxEachPostBytes)
+                if (bean.xhttpScMinPostsIntervalMs?.isNotBlank() == true)
+                    sc_min_posts_interval_ms = com.google.gson.JsonPrimitive(bean.xhttpScMinPostsIntervalMs)
+                bean.xhttpScMaxBufferedPosts?.trim()?.toLongOrNull()?.let {
+                    sc_max_buffered_posts = com.google.gson.JsonPrimitive(it)
+                }
+                if (bean.xhttpScStreamUpServerSecs?.isNotBlank() == true)
+                    sc_stream_up_server_secs = com.google.gson.JsonPrimitive(bean.xhttpScStreamUpServerSecs)
+                if (bean.xhttpUplinkChunkSize?.isNotBlank() == true)
+                    uplink_chunk_size = com.google.gson.JsonPrimitive(bean.xhttpUplinkChunkSize)
+                bean.xhttpServerMaxHeaderBytes?.trim()?.toIntOrNull()?.let {
+                    server_max_header_bytes = it
+                }
+                if (bean.xhttpXPaddingKey?.isNotBlank() == true)
+                    x_padding_key = bean.xhttpXPaddingKey
+                if (bean.xhttpXPaddingHeader?.isNotBlank() == true)
+                    x_padding_header = bean.xhttpXPaddingHeader
+                if (bean.xhttpXPaddingPlacement?.isNotBlank() == true)
+                    x_padding_placement = bean.xhttpXPaddingPlacement
+                if (bean.xhttpUplinkHttpMethod?.isNotBlank() == true)
+                    uplink_http_method = bean.xhttpUplinkHttpMethod
+                if (bean.xhttpUplinkDataKey?.isNotBlank() == true)
+                    uplink_data_key = bean.xhttpUplinkDataKey
+                if (bean.xhttpSessionKey?.isNotBlank() == true)
+                    session_id_key = bean.xhttpSessionKey
+                if (bean.xhttpSessionKeyOld?.isNotBlank() == true)
+                    session_key = bean.xhttpSessionKeyOld
+                if (bean.xhttpSessionIdTable?.isNotBlank() == true)
+                    session_id_table = bean.xhttpSessionIdTable
+                if (bean.xhttpSessionIdLength?.isNotBlank() == true)
+                    session_id_length = com.google.gson.JsonPrimitive(bean.xhttpSessionIdLength)
+                if (bean.xhttpSeqPlacement?.isNotBlank() == true)
+                    seq_placement = bean.xhttpSeqPlacement
+                if (bean.xhttpSeqKey?.isNotBlank() == true)
+                    seq_key = bean.xhttpSeqKey
+                buildXmuxJsonObject(bean)?.let {
+                    xmux = com.google.gson.JsonParser.parseString(it.toString())
                 }
             }
             return baseConfig
@@ -774,7 +1273,7 @@ fun buildSingBoxOutboundStreamSettings(bean: StandardV2RayBean): V2RayTransportO
 }
 
 fun buildSingBoxOutboundTLS(bean: StandardV2RayBean): OutboundTLSOptions? {
-    if (bean.security != "tls") return null
+    if (bean.security != "tls" && bean.security != "reality") return null
     return OutboundTLSOptions().apply {
         enabled = true
         insecure = bean.allowInsecure || DataStore.globalAllowInsecure
@@ -809,14 +1308,11 @@ fun buildSingBoxOutboundTLS(bean: StandardV2RayBean): OutboundTLSOptions? {
             ech = OutboundECHOptions().apply {
                 enabled = true
                 if (bean.echConfig.isNotBlank()) {
-                    config = if (bean.echConfig.contains("BEGIN ECH CONFIGS")) {
-                        bean.echConfig.lines()
-                    } else {
-                        listOf("-----BEGIN ECH CONFIGS-----", bean.echConfig.trim(), "-----END ECH CONFIGS-----")
-                    }
+                    config = bean.echConfig.lines()
                 }
             }
         }
+        applySharedTLSOptions(bean)
     }
 }
 
@@ -846,9 +1342,9 @@ fun buildSingBoxOutboundStandardV2RayBean(bean: StandardV2RayBean): Outbound {
                     encryption = bean.vlessEncryption
                 }
                 when (bean.packetEncoding) {
-                    0 -> packet_encoding = ""
-                    1 -> packet_encoding = "packetaddr"
-                    2 -> packet_encoding = "xudp"
+                    StandardV2RayBean.PACKET_ENCODING_NONE -> packet_encoding = ""
+                    StandardV2RayBean.PACKET_ENCODING_PACKETADDR -> packet_encoding = "packetaddr"
+                    StandardV2RayBean.PACKET_ENCODING_XUDP -> packet_encoding = "xudp"
                 }
                 tls = buildSingBoxOutboundTLS(bean)
                 transport = buildSingBoxOutboundStreamSettings(bean)
@@ -861,9 +1357,9 @@ fun buildSingBoxOutboundStandardV2RayBean(bean: StandardV2RayBean): Outbound {
                 alter_id = bean.alterId
                 security = bean.encryption.takeIf { it.isNotBlank() } ?: "auto"
                 when (bean.packetEncoding) {
-                    0 -> packet_encoding = ""
-                    1 -> packet_encoding = "packetaddr"
-                    2 -> packet_encoding = "xudp"
+                    StandardV2RayBean.PACKET_ENCODING_NONE -> packet_encoding = ""
+                    StandardV2RayBean.PACKET_ENCODING_PACKETADDR -> packet_encoding = "packetaddr"
+                    StandardV2RayBean.PACKET_ENCODING_XUDP -> packet_encoding = "xudp"
                 }
                 tls = buildSingBoxOutboundTLS(bean)
                 transport = buildSingBoxOutboundStreamSettings(bean)

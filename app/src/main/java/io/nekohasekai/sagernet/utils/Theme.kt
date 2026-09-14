@@ -9,6 +9,7 @@ import io.nekohasekai.sagernet.ktx.app
 
 object Theme {
 
+    const val MATERIAL_YOU = 0
     const val RED = 1
     const val PINK_SSR = 2
     const val PINK = 3
@@ -30,9 +31,22 @@ object Theme {
     const val GREY = 19
     const val BLUE_GREY = 20
     const val BLACK = 21
-    const val VERDANT_MINT = 22
+    const val AMOLED = 22
+    const val CUSTOM = CustomTheme.CUSTOM_THEME_ID
 
-    private fun defaultTheme() = PINK_SSR
+    private fun defaultTheme() = MATERIAL_YOU
+
+    fun isMaterialYou(theme: Int = DataStore.appTheme): Boolean {
+        return theme == MATERIAL_YOU
+    }
+
+    fun isCustom(theme: Int = DataStore.appTheme): Boolean {
+        return theme == CUSTOM
+    }
+
+    fun isNightModeForced(theme: Int = DataStore.appTheme): Boolean {
+        return theme == AMOLED
+    }
 
     fun apply(context: Context) {
         context.setTheme(getTheme())
@@ -52,6 +66,7 @@ object Theme {
 
     fun getTheme(theme: Int): Int {
         return when (theme) {
+            MATERIAL_YOU -> R.style.Theme_SagerNet
             RED -> R.style.Theme_SagerNet_Red
             PINK -> R.style.Theme_SagerNet
             PINK_SSR -> R.style.Theme_SagerNet_Pink_SSR
@@ -73,13 +88,15 @@ object Theme {
             GREY -> R.style.Theme_SagerNet_Grey
             BLUE_GREY -> R.style.Theme_SagerNet_BlueGrey
             BLACK -> R.style.Theme_SagerNet_Black
-            VERDANT_MINT -> R.style.Theme_SagerNet_VerdantMint
+            AMOLED -> R.style.Theme_SagerNet_Amoled
+            CUSTOM -> R.style.Theme_SagerNet_Custom
             else -> getTheme(defaultTheme())
         }
     }
 
     fun getDialogTheme(theme: Int): Int {
         return when (theme) {
+            MATERIAL_YOU -> R.style.Theme_SagerNet_Dialog
             RED -> R.style.Theme_SagerNet_Dialog_Red
             PINK -> R.style.Theme_SagerNet_Dialog
             PINK_SSR -> R.style.Theme_SagerNet_Dialog_Pink_SSR
@@ -101,13 +118,17 @@ object Theme {
             GREY -> R.style.Theme_SagerNet_Dialog_Grey
             BLUE_GREY -> R.style.Theme_SagerNet_Dialog_BlueGrey
             BLACK -> R.style.Theme_SagerNet_Dialog_Black
-            VERDANT_MINT -> R.style.Theme_SagerNet_Dialog_VerdantMint
+            AMOLED -> R.style.Theme_SagerNet_Dialog_Amoled
+            CUSTOM -> R.style.Theme_SagerNet_Dialog_Custom
             else -> getDialogTheme(defaultTheme())
         }
     }
 
     var currentNightMode = -1
     fun getNightMode(): Int {
+        if (isNightModeForced()) {
+            return AppCompatDelegate.MODE_NIGHT_YES
+        }
         if (currentNightMode == -1) {
             currentNightMode = DataStore.nightTheme
         }
@@ -124,6 +145,9 @@ object Theme {
     }
 
     fun usingNightMode(): Boolean {
+        if (isNightModeForced()) {
+            return true
+        }
         return when (DataStore.nightTheme) {
             1 -> true
             2 -> false

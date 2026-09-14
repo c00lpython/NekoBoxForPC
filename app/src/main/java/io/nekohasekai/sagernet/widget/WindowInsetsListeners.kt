@@ -4,9 +4,15 @@ import android.view.View
 import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import java.util.WeakHashMap
 
 object ListListener : OnApplyWindowInsetsListener {
+    private val initialBottomPadding = WeakHashMap<View, Int>()
+
     override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat) = insets.apply {
-        view.updatePadding(bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom)
+        val initialBottom = initialBottomPadding.getOrPut(view) { view.paddingBottom }
+        view.updatePadding(
+            bottom = initialBottom + insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        )
     }
 }

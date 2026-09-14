@@ -23,20 +23,24 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val pendingResult = goAsync()
         runOnDefaultDispatcher {
-            SubscriptionUpdater.reconfigureUpdater()
+            try {
+                SubscriptionUpdater.reconfigureUpdater()
+            } finally {
+                pendingResult.finish()
+            }
         }
 
-        if (!DataStore.persistAcrossReboot) {   // sanity check
-            enabled = false
-            return
+        if (BootReceiverPolicy.shouldStartService(
+                action = intent.action,
+                persistAcrossReboot = DataStore.persistAcrossReboot,
+                selectedProxy = DataStore.selectedProxy,
+                sdkInt = Build.VERSION.SDK_INT,
+                userUnlocked = SagerNet.user.isUserUnlocked,
+            )
+        ) {
+            SagerNet.startService()
         }
-
-        val doStart = when (intent.action) {
-            Intent.ACTION_LOCKED_BOOT_COMPLETED -> false // DataStore.directBootAware
-            else -> Build.VERSION.SDK_INT < 24 || SagerNet.user.isUserUnlocked
-        } && DataStore.selectedProxy > 0
-
-        if (doStart) SagerNet.startService()
     }
 }

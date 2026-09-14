@@ -10,4 +10,8 @@ public class ParcelizeBridge {
     public static RuleEntity createRule(Parcel parcel) {
         return (RuleEntity) RuleEntity.CREATOR.createFromParcel(parcel);
     }
+
+    public static CustomDnsServerEntity createCustomDnsServer(Parcel parcel) {
+        return (CustomDnsServerEntity) CustomDnsServerEntity.CREATOR.createFromParcel(parcel);
+    }
 }

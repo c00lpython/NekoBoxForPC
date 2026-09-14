@@ -4,6 +4,9 @@
         android:id="@+id/action_edit"
         android:title="@string/edit" />
     <item
+        android:id="@+id/action_url_test"
+        android:title="@string/connection_test_url_test" />
+    <item
         android:id="@+id/action_share"
         android:title="@string/share" />
     <item

@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceFragmentCompat
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -22,11 +23,15 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.profileCardType
+import io.nekohasekai.sagernet.utils.ProfileCountryResolver
 import io.nekohasekai.sagernet.databinding.LayoutAddEntityBinding
 import io.nekohasekai.sagernet.databinding.LayoutProfileBinding
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ProfileSelectActivity
+import io.nekohasekai.sagernet.ui.bindProfileSecurity
+import io.nekohasekai.sagernet.widget.ListListener
 import moe.matsuri.nb4a.Protocols.getProtocolColor
 
 class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout_chain_settings) {
@@ -53,6 +58,18 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
         addPreferencesFromResource(R.xml.name_preferences)
     }
 
+    private fun isValidByeDPIChain(list: List<ProxyEntity>): Boolean {
+        var seenByeDPI = false
+        list.forEachIndexed { index, profile ->
+            if (!profile.containsByeDPI()) return@forEachIndexed
+            if (seenByeDPI || index != 0 || !profile.startsWithByeDPI()) {
+                return false
+            }
+            seenByeDPI = true
+        }
+        return true
+    }
+
     lateinit var configurationList: RecyclerView
     lateinit var configurationAdapter: ProxiesAdapter
     lateinit var layoutManager: LinearLayoutManager
@@ -63,6 +80,8 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
 
         supportActionBar!!.setTitle(R.string.chain_settings)
         configurationList = findViewById(R.id.configuration_list)
+        configurationList.clipToPadding = false
+        ViewCompat.setOnApplyWindowInsetsListener(configurationList, ListListener)
         layoutManager = FixedLinearLayoutManager(configurationList)
         configurationList.layoutManager = layoutManager
         configurationAdapter = ProxiesAdapter()
@@ -99,7 +118,24 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
             }
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                configurationAdapter.remove(viewHolder.bindingAdapterPosition)
+                val index = viewHolder.bindingAdapterPosition
+                if (index == RecyclerView.NO_POSITION) return
+                if (DataStore.confirmProfileDelete) {
+                    var confirmed = false
+                    MaterialAlertDialogBuilder(this@ChainSettingsActivity)
+                        .setTitle(R.string.delete_confirm_prompt)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            confirmed = true
+                            configurationAdapter.remove(index)
+                        }
+                        .setNegativeButton(R.string.no, null)
+                        .setOnDismissListener {
+                            if (!confirmed) configurationAdapter.notifyItemChanged(index)
+                        }
+                        .show()
+                } else {
+                    configurationAdapter.remove(index)
+                }
             }
 
         }).attachToRecyclerView(configurationList)
@@ -138,6 +174,12 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
             val toMove = proxyList[to - 1]
             proxyList[to - 1] = proxyList[from - 1]
             proxyList[from - 1] = toMove
+            if (!isValidByeDPIChain(proxyList)) {
+                proxyList[from - 1] = proxyList[to - 1]
+                proxyList[to - 1] = toMove
+                notifyDataSetChanged()
+                return
+            }
             notifyItemMoved(from, to)
             DataStore.dirty = true
         }
@@ -180,6 +222,7 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
 
     fun testProfileAllowed(profile: ProxyEntity): Boolean {
         if (profile.id == DataStore.editingId) return false
+        if (profile.containsMasterDnsVPN()) return false
 
         for (entity in proxyList) {
             if (testProfileContains(entity, profile)) return false
@@ -218,11 +261,33 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
 
                 if (!testProfileAllowed(profile)) {
                     onMainDispatcher {
-                        MaterialAlertDialogBuilder(this@ChainSettingsActivity).setTitle(R.string.circular_reference)
-                            .setMessage(R.string.circular_reference_sum)
+                        MaterialAlertDialogBuilder(this@ChainSettingsActivity).setTitle(R.string.invalid_profile)
+                            .setMessage(
+                                if (profile.containsMasterDnsVPN()) {
+                                    R.string.masterdnsvpn_chain_error
+                                } else {
+                                    R.string.circular_reference_sum
+                                }
+                            )
                             .setPositiveButton(android.R.string.ok, null).show()
                     }
                 } else {
+                    val nextList = proxyList.toMutableList()
+                    if (replacing != 0) {
+                        nextList[replacing - 1] = profile
+                    } else {
+                        nextList.add(profile)
+                    }
+                    if (!isValidByeDPIChain(nextList)) {
+                        onMainDispatcher {
+                            MaterialAlertDialogBuilder(this@ChainSettingsActivity)
+                                .setTitle(R.string.invalid_profile)
+                                .setMessage(R.string.byedpi_chain_position_error)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        }
+                        return@runOnDefaultDispatcher
+                    }
                     configurationList.post {
                         if (replacing != 0) {
                             proxyList[replacing - 1] = profile
@@ -250,20 +315,31 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
         }
     }
 
-    inner class ProfileHolder(binding: LayoutProfileBinding) :
+    inner class ProfileHolder(private val binding: LayoutProfileBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
+        private val profileCard = binding.root
+        private val defaultCardStrokeColor = profileCard.strokeColorStateList
+        private val defaultCardStrokeWidth = profileCard.strokeWidth
         val profileName = binding.profileName
         val profileType = binding.profileType
         val trafficText: TextView = binding.trafficText
         val editButton = binding.edit
+        val urlTestButton = binding.urlTest
         val shareLayout = binding.share
 
         fun bind(proxyEntity: ProxyEntity) {
 
-            profileName.text = proxyEntity.displayName()
-            profileType.text = proxyEntity.displayType()
+            val countryBadgeVisible = binding.countryBadge.bind(proxyEntity)
+            profileName.text =
+                ProfileCountryResolver.presentationName(proxyEntity, countryBadgeVisible)
+            profileType.text = proxyEntity.profileCardType(DataStore.shortProfileProtocolInfo)
             profileType.setTextColor(getProtocolColor(proxyEntity.type))
+            profileCard.bindProfileSecurity(
+                proxyEntity,
+                defaultCardStrokeColor,
+                defaultCardStrokeWidth,
+            )
 
             val rx = proxyEntity.rx
             val tx = proxyEntity.tx
@@ -287,6 +363,7 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
                 })
             }
 
+            urlTestButton.isVisible = false
             shareLayout.isVisible = false
         }
 

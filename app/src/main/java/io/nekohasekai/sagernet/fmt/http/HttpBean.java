@@ -40,6 +40,12 @@ public class HttpBean extends StandardV2RayBean {
 
     @NotNull
     @Override
+    public String getHash() {
+        return buildTypedHash(("tls".equals(security) || "reality".equals(security)) ? "https" : "http");
+    }
+
+    @NotNull
+    @Override
     public HttpBean clone() {
         return KryoConverters.deserialize(new HttpBean(), KryoConverters.serialize(this));
     }

@@ -11,6 +11,7 @@ import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.aidl.ISagerNetService
 import io.nekohasekai.sagernet.aidl.ISagerNetServiceCallback
 import io.nekohasekai.sagernet.aidl.SpeedDisplayData
+import io.nekohasekai.sagernet.aidl.SpeedTestData
 import io.nekohasekai.sagernet.aidl.TrafficDataBatch
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
@@ -33,6 +34,7 @@ class SagerConnection(
         const val CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND = 2
         const val CONNECTION_ID_MAIN_ACTIVITY_BACKGROUND = 3
         const val CONNECTION_ID_RESTART_BG = 4
+        const val CONNECTION_ID_SPEED_TEST = 5
 
         var restartingApp = false
     }
@@ -41,8 +43,10 @@ class SagerConnection(
         // smaller ISagerNetServiceCallback
 
         fun cbSpeedUpdate(stats: SpeedDisplayData) {}
+        fun cbSpeedTestUpdate(status: SpeedTestData) {}
         suspend fun cbTrafficUpdate(data: TrafficDataBatch) {}
         fun cbSelectorUpdate(id: Long) {}
+        fun cbMasterDnsVPNResolverProgress(found: Int, total: Int, ready: Boolean) {}
 
         fun stateChanged(state: BaseService.State, profileName: String?, msg: String?)
 
@@ -79,6 +83,13 @@ class SagerConnection(
             }
         }
 
+        override fun cbSpeedTestUpdate(status: SpeedTestData) {
+            val callback = callback ?: return
+            runOnMainDispatcher {
+                callback.cbSpeedTestUpdate(status)
+            }
+        }
+
         override fun cbTrafficUpdate(stats: TrafficDataBatch) {
             val callback = callback ?: return
             runOnMainDispatcher {
@@ -90,6 +101,13 @@ class SagerConnection(
             val callback = callback ?: return
             runOnMainDispatcher {
                 callback.cbSelectorUpdate(id)
+            }
+        }
+
+        override fun cbMasterDnsVPNResolverProgress(found: Int, total: Int, ready: Boolean) {
+            val callback = callback ?: return
+            runOnMainDispatcher {
+                callback.cbMasterDnsVPNResolverProgress(found, total, ready)
             }
         }
 

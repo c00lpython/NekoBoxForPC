@@ -6,6 +6,7 @@ import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import moe.matsuri.nb4a.utils.NGUtil
 import okhttp3.HttpUrl
+import java.net.URI
 import java.net.InetSocketAddress
 import java.net.Socket
 
@@ -50,6 +51,19 @@ fun String.wrapIPV6Host(): String {
     }
 }
 
+data class HostAndPort(
+    val host: String,
+    val port: Int,
+)
+
+fun String.parseHostAndPort(): HostAndPort? {
+    val uri = runCatching { URI("wg://$this") }.getOrNull() ?: return null
+    val host = uri.host?.unwrapIPV6Host().orEmpty()
+    val port = uri.port
+    if (host.isBlank() || port == -1) return null
+    return HostAndPort(host, port)
+}
+
 fun AbstractBean.wrapUri(): String {
     return "${finalAddress.wrapIPV6Host()}:$finalPort"
 }
@@ -63,4 +77,4 @@ fun mkPort(): Int {
     return port
 }
 
-const val USER_AGENT = "NekoBox/Android/" + BuildConfig.VERSION_NAME + " (Prefer ClashMeta Format)"
+val USER_AGENT = "NekoBox/Android/" + BuildConfig.VERSION_NAME.replace(Regex("""(\-\d+)?"""), "") + " (Prefer ClashMeta Format)"

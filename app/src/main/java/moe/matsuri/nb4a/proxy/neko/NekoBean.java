@@ -10,6 +10,7 @@ import org.json.JSONObject;
 
 import io.nekohasekai.sagernet.fmt.AbstractBean;
 import io.nekohasekai.sagernet.fmt.KryoConverters;
+import io.nekohasekai.sagernet.ktx.JsonHashNormalizer;
 import io.nekohasekai.sagernet.ktx.Logs;
 
 public class NekoBean extends AbstractBean {
@@ -43,6 +44,12 @@ public class NekoBean extends AbstractBean {
         sharedStorage = tryParseJSON(input.readString());
     }
 
+    @Override
+    protected void normalizeJsonFieldsForHash() {
+        super.normalizeJsonFieldsForHash();
+        sharedStorage = JsonHashNormalizer.normalizeJsonObjectOrRaw(sharedStorage);
+    }
+
     @NotNull
     public static JSONObject tryParseJSON(String input) {
         JSONObject ret;
@@ -72,6 +79,12 @@ public class NekoBean extends AbstractBean {
     @Override
     public boolean canTCPing() {
         return false;
+    }
+
+    @NotNull
+    @Override
+    public String getHash() {
+        return buildTypedHash("neko");
     }
 
     @NotNull

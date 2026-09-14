@@ -55,11 +55,15 @@ class ProxyInstance(profile: ProxyEntity, var service: BaseService.Interface? = 
         }
     }
 
-    override fun close() {
-        super.close()
+    override fun close(timeoutMillis: Long) {
         runBlocking {
             looper?.stop()
             looper = null
         }
+        super.close(timeoutMillis)
+    }
+
+    override fun close() {
+        close(60_000L)
     }
 }

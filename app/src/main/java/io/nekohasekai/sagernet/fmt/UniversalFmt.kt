@@ -20,7 +20,9 @@ fun parseUniversal(link: String): AbstractBean {
 
 fun AbstractBean.toUniversalLink(): String {
     var link = "sn://"
-    link += TypeMap.reversed[ProxyEntity().putBean(this).type]
+    val type = TypeMap.reversed[ProxyEntity().putBean(this).type]
+        ?: error("Profile is not exportable as SN link")
+    link += type
     link += "?"
     link += Util.b64EncodeUrlSafe(Util.zlibCompress(KryoConverters.serialize(this), 9))
     return link

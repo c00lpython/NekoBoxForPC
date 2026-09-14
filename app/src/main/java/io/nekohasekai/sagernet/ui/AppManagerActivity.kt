@@ -6,7 +6,6 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.text.TextUtils
 import android.util.SparseBooleanArray
 import android.view.KeyEvent
 import android.view.Menu
@@ -44,7 +43,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import moe.matsuri.nb4a.utils.NGUtil
+import io.nekohasekai.sagernet.utils.RoutingRulesService
+import java.util.Locale
 import kotlin.coroutines.coroutineContext
 
 class AppManagerActivity : ThemedActivity() {
@@ -254,7 +254,7 @@ class AppManagerActivity : ThemedActivity() {
         loadApps()
     }
 
-    private var sysApps = true
+    private var sysApps = false
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.per_app_proxy_menu, menu)
@@ -335,57 +335,63 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private fun selectProxyApp() {
-        MaterialAlertDialogBuilder(this).setTitle(R.string.confirm)
-            .setMessage(R.string.auto_select_proxy_apps_message)
-            .setPositiveButton(R.string.yes) { _, _ ->
-                try {
-                    val needProxyAppsList = getAutoProxyApps("")
-                    val bypass = DataStore.bypass
-                    proxiedUids.clear()
-                    for (app in cachedApps) {
-                        val needProxy =
-                            needProxyAppsList.contains(app.key) || (app.value.applicationInfo?.uid
-                                ?: 0) == 1000
-                        if (needProxy) {
-                            if (!bypass) {
-                                app.value.applicationInfo?.apply {
-                                    proxiedUids[uid] = true
-                                }
-                            }
-                        } else {
-                            if (bypass) {
-                                app.value.applicationInfo?.apply {
-                                    proxiedUids[uid] = true
-                                }
-                            }
-                        }
-                    }
-                    DataStore.individual =
-                        apps.filter { isProxiedApp(it) }.joinToString("\n") { it.packageName }
-                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
-                    appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
-                } catch (e: Exception) {
-                    Logs.e(e)
-                }
-            }
+        val dir = detectRoutingDir()
+        if (dir != null) {
+            showSelectConfirm(dir)
+        } else {
+            showRegionPicker { showSelectConfirm(it) }
+        }
+    }
+
+    private fun detectRoutingDir(): String? = when (Locale.getDefault().country.uppercase()) {
+        "RU" -> "ru"
+        "CN" -> "cn"
+        "IR" -> "ir"
+        else -> null
+    }
+
+    private fun showRegionPicker(onSelected: (String) -> Unit) {
+        val labels = arrayOf(
+            getString(R.string.routing_region_russia),
+            getString(R.string.routing_region_china),
+            getString(R.string.routing_region_iran),
+            getString(R.string.routing_region_other)
+        )
+        val dirs = arrayOf("ru", "cn", "ir", "other")
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.routing_select_region)
+            .setItems(labels) { _, i -> onSelected(dirs[i]) }
             .setNegativeButton(R.string.no, null)
             .show()
     }
 
-    private fun getAutoProxyApps(content: String): List<String> {
-        var list = listOf<String>()
+    private fun showSelectConfirm(routingDir: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.confirm)
+            .setMessage(R.string.auto_select_proxy_apps_message)
+            .setPositiveButton(R.string.yes) { _, _ -> applyRoutingSelection(routingDir) }
+            .setNegativeButton(R.string.no, null)
+            .show()
+    }
+
+    private fun applyRoutingSelection(routingDir: String) {
         try {
-            val proxyApps = if (TextUtils.isEmpty(content)) {
-                NGUtil.readTextFromAssets(app, "proxy_packagename.txt")
-            } else {
-                content
+            val service = RoutingRulesService(app, routingDir)
+            val bypass = DataStore.bypass
+            val selected = service.computeProxiedPackages(PackageCache.installedApps, bypass)
+            proxiedUids.clear()
+            for ((packageName, packageInfo) in cachedApps) {
+                if (packageName in selected) {
+                    packageInfo.applicationInfo?.let { proxiedUids[it.uid] = true }
+                }
             }
-            if (!TextUtils.isEmpty(proxyApps)) {
-                list = proxyApps.split("\n")
-            }
-        } catch (_: Exception) {
+            DataStore.individual =
+                apps.filter { isProxiedApp(it) }.joinToString("\n") { it.packageName }
+            apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
+            appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
+        } catch (e: Exception) {
+            Logs.e(e)
         }
-        return list
     }
 
     override fun supportNavigateUpTo(upIntent: Intent) =
