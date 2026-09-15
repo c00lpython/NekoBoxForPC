@@ -26,3 +26,17 @@ subs.json
 .atl/
 .pi/
 .codex
+nekobox-cli
+nekobox-cli.exe
+libcore/nekobox-cli
+libcore/nekobox-cli.exe
+
+# singbox binaries
+/singbox/Windows/*
+!/singbox/Windows/.gitkeep
+/singbox/Windows7/*
+!/singbox/Windows7/.gitkeep
+/singbox/Linux/*
+!/singbox/Linux/.gitkeep
+/singbox/MacOS/*
+!/singbox/MacOS/.gitkeep
