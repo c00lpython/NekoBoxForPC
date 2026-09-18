@@ -1,0 +1,3 @@
+"""
+Юнит-тесты NekoBoxPlusForPC.
+"""

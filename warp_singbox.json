@@ -1,0 +1,114 @@
+{
+  "dns": {
+    "final": "dns-remote",
+    "rules": [
+      {
+        "domain_suffix": [
+          ".ru",
+          ".cn",
+          "yandex.ru",
+          "vk.com",
+          "mail.ru"
+        ],
+        "server": "dns-direct"
+      }
+    ],
+    "servers": [
+      {
+        "detour": "WARP",
+        "server": "1.1.1.1",
+        "tag": "dns-remote",
+        "type": "https"
+      },
+      {
+        "detour": "direct",
+        "tag": "dns-direct",
+        "type": "local"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "endpoints": [
+    {
+      "address": [
+        "172.16.0.2/32",
+        "2606:4700:110:8ad2:5e94:9959:e65b:ef3d/128"
+      ],
+      "mtu": 1280,
+      "peers": [
+        {
+          "address": "188.114.97.66",
+          "allowed_ips": [
+            "0.0.0.0/0",
+            "::/0"
+          ],
+          "port": 4500,
+          "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+        }
+      ],
+      "private_key": "tw1IEg0qgqzXCgboO4GHaD0U2suLTpEKwzf4swV4ZmY=",
+      "tag": "WARP",
+      "type": "wireguard"
+    }
+  ],
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090"
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_domain_resolver": "dns-direct",
+    "final": "WARP",
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".cn",
+          "yandex.ru",
+          "vk.com",
+          "mail.ru",
+          "gosuslugi.ru"
+        ],
+        "outbound": "direct"
+      }
+    ]
+  }
+}

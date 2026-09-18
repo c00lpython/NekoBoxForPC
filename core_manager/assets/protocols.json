@@ -1,0 +1,181 @@
+{
+  "vless": {
+    "description": "VLESS — легковесный производительный протокол без шифрования полезной нагрузки",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес сервера (IPv4, IPv6 или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт сервера", "default": 443 },
+      "uuid": { "type": "string", "description": "UUID пользователя (идентификатор клиента)", "default": "" },
+      "flow": { "type": "string", "description": "Flow управления потоком (xtls-rprx-vision или пусто)", "default": "xtls-rprx-vision" },
+      "packet_encoding": { "type": "string", "description": "Кодирование UDP пакетов (xudp, packetaddr или пусто)", "default": "xudp" },
+      "network": { "type": "string", "description": "Сетевой транспорт (tcp, udp)", "default": "tcp" },
+      "security": { "type": "string", "description": "Схема безопасности (none, tls, reality)", "default": "reality" },
+      "sni": { "type": "string", "description": "SNI (Server Name Indication для TLS/Reality)", "default": "" },
+      "insecure": { "type": "bool", "description": "Разрешить недоверенные/самоподписанные сертификаты", "default": false },
+      "alpn": { "type": "array", "description": "Список ALPN протоколов (например: [\"h2\", \"http/1.1\"])", "default": ["h2", "http/1.1"] },
+      "reality_public_key": { "type": "string", "description": "Публичный ключ Reality (Reality Public Key)", "default": "" },
+      "reality_short_id": { "type": "string", "description": "Short ID для Reality (шестнадцатеричный идентификатор)", "default": "" },
+      "transport_type": { "type": "string", "description": "Тип транспорта (tcp, ws, grpc, httpupgrade)", "default": "tcp" },
+      "transport_path": { "type": "string", "description": "Путь для WebSocket или HTTPUpgrade (Path)", "default": "/" },
+      "transport_service_name": { "type": "string", "description": "Имя gRPC сервиса (Service Name)", "default": "" }
+    }
+  },
+  "vmess": {
+    "description": "VMess — классический протокол V2Ray с собственным шифрованием пакетов",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес сервера (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт сервера", "default": 443 },
+      "uuid": { "type": "string", "description": "UUID пользователя", "default": "" },
+      "alter_id": { "type": "u16", "description": "AlterId (рекомендуется 0 для AEAD)", "default": 0 },
+      "security": { "type": "string", "description": "Шифрование полезной нагрузки (auto, aes-128-gcm, chacha20-poly1305, none)", "default": "auto" },
+      "packet_encoding": { "type": "string", "description": "Кодирование UDP пакетов (xudp или пусто)", "default": "xudp" },
+      "tls_enabled": { "type": "bool", "description": "Включить TLS шифрование", "default": true },
+      "sni": { "type": "string", "description": "SNI (Server Name Indication)", "default": "" },
+      "transport_type": { "type": "string", "description": "Тип транспорта (tcp, ws, grpc, httpupgrade)", "default": "ws" },
+      "transport_path": { "type": "string", "description": "Путь запроса WebSocket (Path)", "default": "/" }
+    }
+  },
+  "trojan": {
+    "description": "Trojan — протокол имитации защищенного HTTPS трафика поверх стандартного TLS",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес сервера (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт сервера", "default": 443 },
+      "password": { "type": "string", "description": "Пароль аутентификации Trojan", "default": "" },
+      "sni": { "type": "string", "description": "SNI (Server Name Indication)", "default": "" },
+      "insecure": { "type": "bool", "description": "Разрешить недоверенные сертификаты", "default": false },
+      "alpn": { "type": "array", "description": "Список ALPN (например: [\"h2\", \"http/1.1\"])", "default": ["h2", "http/1.1"] },
+      "transport_type": { "type": "string", "description": "Тип транспорта (tcp, ws, grpc)", "default": "tcp" },
+      "transport_path": { "type": "string", "description": "Путь запроса (Path)", "default": "" }
+    }
+  },
+  "shadowsocks": {
+    "description": "Shadowsocks (SS) — быстрый надежный шифрованный SOCKS5-прокси",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес сервера (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт сервера", "default": 8388 },
+      "method": { "type": "string", "description": "Метод шифрования (2022-blake3-aes-128-gcm, 2022-blake3-aes-256-gcm, aes-128-gcm, chacha20-ietf-poly1305)", "default": "2022-blake3-aes-128-gcm" },
+      "password": { "type": "string", "description": "Пароль подключения (или base64 ключ для SS-2022)", "default": "" },
+      "plugin": { "type": "string", "description": "SIP003 плагин обфускации (obfs-local, v2ray-plugin или пусто)", "default": "" },
+      "plugin_opts": { "type": "string", "description": "Опции плагина обфускации", "default": "" },
+      "udp_over_tcp": { "type": "bool", "description": "Инкапсуляция UDP через TCP туннель", "default": false }
+    }
+  },
+  "hysteria2": {
+    "description": "Hysteria 2 — высокоскоростной UDP прокси на модифицированном протоколе QUIC",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес сервера (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт сервера", "default": 443 },
+      "password": { "type": "string", "description": "Пароль / Токен аутентификации", "default": "" },
+      "up_mbps": { "type": "u32", "description": "Максимальная скорость исходящего канала (Mbps)", "default": 100 },
+      "down_mbps": { "type": "u32", "description": "Максимальная скорость входящего канала (Mbps)", "default": 100 },
+      "obfs_type": { "type": "string", "description": "Тип маскировки (salamander или пусто)", "default": "" },
+      "obfs_password": { "type": "string", "description": "Пароль обфускации Salamander", "default": "" },
+      "sni": { "type": "string", "description": "SNI (Server Name Indication)", "default": "" },
+      "insecure": { "type": "bool", "description": "Игнорировать ошибки TLS сертификата", "default": false }
+    }
+  },
+  "wireguard": {
+    "description": "WireGuard — современный VPN туннель на UDP с минимальной задержкой",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес эндпоинта (IP или домен сервера)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт эндпоинта", "default": 51820 },
+      "private_key": { "type": "string", "description": "Приватный ключ клиента (Base64)", "default": "" },
+      "peer_public_key": { "type": "string", "description": "Публичный ключ сервера (Base64)", "default": "" },
+      "pre_shared_key": { "type": "string", "description": "Pre-shared key (PSK, опционально)", "default": "" },
+      "local_address": { "type": "string", "description": "Локальный IP интерфейса в туннеле (например: 172.16.0.2/32)", "default": "172.16.0.2/32" },
+      "mtu": { "type": "u16", "description": "Размер MTU сетевого интерфейса", "default": 1420 },
+      "reserved": { "type": "array", "description": "Резервные байты (для Cloudflare WARP [0, 0, 0])", "default": [0, 0, 0] }
+    }
+  },
+  "amneziawg": {
+    "description": "AmneziaWG (AWG) — протокол WireGuard с параметрами маскировки от сигнатурного анализа и ТСПУ",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес эндпоинта (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт эндпоинта", "default": 51820 },
+      "private_key": { "type": "string", "description": "Приватный ключ клиента (Base64)", "default": "" },
+      "peer_public_key": { "type": "string", "description": "Публичный ключ сервера (Base64)", "default": "" },
+      "pre_shared_key": { "type": "string", "description": "Pre-shared key (PSK)", "default": "" },
+      "local_address": { "type": "string", "description": "Локальный IP интерфейса (например: 172.16.0.2/32)", "default": "172.16.0.2/32" },
+      "mtu": { "type": "u16", "description": "Размер MTU пакета", "default": 1420 },
+      "jc": { "type": "u16", "description": "Junk packet count (Количество мусорных пакетов при инициализации)", "default": 4 },
+      "jmin": { "type": "u16", "description": "Junk packet minimum size (Минимальный размер мусорного пакета)", "default": 40 },
+      "jmax": { "type": "u16", "description": "Junk packet maximum size (Максимальный размер мусорного пакета)", "default": 70 },
+      "s1": { "type": "u16", "description": "Init packet junk size (Размер мусорного префикса первого пакета)", "default": 15 },
+      "s2": { "type": "u16", "description": "Response packet junk size (Размер мусорного префикса ответного пакета)", "default": 15 },
+      "h1": { "type": "u32", "description": "Init packet magic header (Магический заголовок пакета инициализации)", "default": 1 },
+      "h2": { "type": "u32", "description": "Response packet magic header (Магический заголовок пакета ответа)", "default": 2 },
+      "h3": { "type": "u32", "description": "Cookie packet magic header (Магический заголовок cookie пакета)", "default": 3 },
+      "h4": { "type": "u32", "description": "Transport packet magic header (Магический заголовок транспортного пакета)", "default": 4 }
+    }
+  },
+  "tuic": {
+    "description": "TUIC — быстрый туннельный протокол на базе QUIC версии 5",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес сервера (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт сервера", "default": 443 },
+      "uuid": { "type": "string", "description": "UUID пользователя", "default": "" },
+      "password": { "type": "string", "description": "Пароль подключения TUIC", "default": "" },
+      "congestion_control": { "type": "string", "description": "Алгоритм контроля перегрузки (bbr, cubic, new_reno)", "default": "bbr" },
+      "udp_relay_mode": { "type": "string", "description": "Режим проксирования UDP (native, quic)", "default": "native" },
+      "zero_rtt_handshake": { "type": "bool", "description": "Включить 0-RTT рукопожатие для ускорения", "default": false },
+      "sni": { "type": "string", "description": "SNI (Server Name Indication)", "default": "" },
+      "insecure": { "type": "bool", "description": "Разрешить самоподписанные сертификаты", "default": false }
+    }
+  },
+  "ssh": {
+    "description": "SSH — безопасное туннелирование трафика через удаленный Linux/Unix хост",
+    "properties": {
+      "server": { "type": "string", "description": "Адрес SSH сервера (IP или домен)", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Порт SSH демона", "default": 22 },
+      "user": { "type": "string", "description": "Имя пользователя SSH", "default": "root" },
+      "password": { "type": "string", "description": "Пароль пользователя (или пусто для аутентификации по ключу)", "default": "" },
+      "private_key": { "type": "string", "description": "Приватный RSA/Ed25519 ключ", "default": "" },
+      "private_key_passphrase": { "type": "string", "description": "Парольная фраза для расшифровки ключа", "default": "" }
+    }
+  },
+  "byedpi": {
+    "description": "ByeDPI — локальный SOCKS5 прокси для обхода DPI блокировок и ТСПУ",
+    "properties": {
+      "server": { "type": "string", "description": "Локальный хост привязки", "default": "127.0.0.1" },
+      "server_port": { "type": "u16", "description": "Локальный порт ByeDPI демона", "default": 1080 },
+      "split_pos": { "type": "u16", "description": "Позиция разделения SNI запроса (split_pos)", "default": 2 },
+      "split_flags": { "type": "string", "description": "Параметры разделения пакетов (--split, --disorder, --fake)", "default": "--split 2+s" },
+      "disorder": { "type": "u16", "description": "Смещение пакетов с нарушением порядка (disorder)", "default": 1 },
+      "auto_ttl": { "type": "bool", "description": "Автоматический подбор TTL для фейковых пакетов", "default": true },
+      "fake_sni": { "type": "string", "description": "Фейковый SNI для маскировки (fake-sni)", "default": "" }
+    }
+  },
+  "masterdnsvpn": {
+    "description": "MasterDnsVPN — туннелирование сетевого трафика через DNS резолвер",
+    "properties": {
+      "dns_server": { "type": "string", "description": "IP адрес целевого DNS сервера", "default": "77.88.8.8" },
+      "server_port": { "type": "u16", "description": "Порт DNS сервера", "default": 53 },
+      "query_type": { "type": "string", "description": "Тип DNS запросов (A, TXT, HTTPS)", "default": "A" },
+      "domain_strategy": { "type": "string", "description": "Стратегия разрешения IP (prefer_ipv4, prefer_ipv6, ipv4_only, ipv6_only)", "default": "prefer_ipv4" }
+    }
+  },
+  "proxychain": {
+    "_special": "chain",
+    "description": "ProxyChain — упорядоченная последовательная цепочка прокси (Клиент -> Хоп 1 -> Хоп 2 -> Интернет)",
+    "properties": {
+      "nodes": { "type": "array", "description": "Упорядоченный список тегов узлов цепочки (например: [\"Group.Node1\", \"Group.Node2\"])", "default": [] },
+      "udp": { "type": "bool", "description": "Проксировать весь UDP трафик через созданную цепочку", "default": true }
+    }
+  },
+  "balancer": {
+    "_special": "balancer",
+    "description": "Balancer — интеллектуальный балансировщик нагрузки с автовыбором наилучшего узла",
+    "properties": {
+      "group": { "type": "string", "description": "Группа узлов для балансировки (или ALL для всех)", "default": "ALL" },
+      "strategy": { "type": "string", "description": "Алгоритм балансировки: urltest (по пингу), selector (ручной), fallback (резерв)", "default": "urltest" },
+      "url": { "type": "string", "description": "Тестовый URL адрес для замера задержек", "default": "https://www.gstatic.com/generate_204" },
+      "interval": { "type": "string", "description": "Интервал периодической проверки задержки (30s, 1m, 3m, 5m)", "default": "3m" },
+      "tolerance": { "type": "u16", "description": "Допуск задержки (Tolerance, ms) — защита от колебаний соединений", "default": 50 },
+      "interrupt_exist_connections": { "type": "bool", "description": "Разрывать активные сессии при переключении на более быстрый узел", "default": true },
+      "idle_timeout": { "type": "string", "description": "Таймаут простоя неактивных соединений", "default": "30m" }
+    }
+  },
+  "direct": {
+    "description": "Direct — прямое интернет-подключение без использования прокси-серверов",
+    "properties": {}
+  }
+}

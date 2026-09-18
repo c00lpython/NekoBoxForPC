@@ -11,6 +11,20 @@
 
 [4pda](https://4pda.to/forum/index.php?showtopic=1121122)
 
+## NekoBoxPlusForPC CLI (`nbpfpc`)
+
+В проект включена десктопная консольная утилита и супервайзер ядра `sing-box` на Rust (`nbpfpc`):
+- Поддержка синтаксиса команд с дефисом (`-help`, `-ping`, `-list`, `-backup`, `-recovery`) и без (`help`, `ping`, `list`).
+- Изолированный запуск без TUN (Mixed SOCKS5/HTTP `127.0.0.1:20808` + Web UI Clash API `127.0.0.1:9090`).
+- Параллельный замер задержек (`-ping [TARGET] [OPTIONS]`): режимы вывода (`--mode table|list|pager`), сортировка (`--sort fastest|slowest|name|group|original`), сохранение пинга в LocalStorage и выгрузка отчетов (`--export report.json`).
+- Встроенные ассеты (`assets install` / `list`): готовые группы `WARP` (AWG + MASQUE HTTP/3) и `Goida Group` (Free Sub).
+- Управление правилами маршрутизации (`newrule`, `delrule`, `ruleslist`, `moverule`, `switchrule`).
+- Локальное хранилище баз GeoIP и GeoSite (`geolist`, `geoupdate`, `geofetch`, `geodel`).
+- Резервное копирование и восстановление (`-backup` и `-recovery`): интерактивное окно подтверждения, фильтры `CONFIGS`, `ROUTES`, `SETTINGS`, режимы `--mode merge` (безопасное слияние) и `hard`.
+- Интерактивный терминальный TUI-пейджер (`list`) и меню настроек (`settings`).
+
+Подробное руководство по установке и командам: [docs/CLI_USAGE.md](docs/CLI_USAGE.md).
+
 ## Supported Protocols
 
 * SOCKS (4/4a/5)

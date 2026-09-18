@@ -1,0 +1,3 @@
+"""
+Пакет unit-тестов NekoBoxPlusForPC.
+"""

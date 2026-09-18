@@ -1,98 +1,114 @@
 name: CI
+
 on:
   push:
-    tags-ignore:
-      - 'v*'
     branches:
       - '*'
+    tags-ignore:
+      - 'v*'
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
-  libcore:
-    name: Native Build (LibCore)
+  test:
+    name: Run All Tests and Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          submodules: recursive
-      - name: Setup Java
-        uses: actions/setup-java@v5
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Golang Status
-        run: find buildScript libcore/*.sh | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        id: cache
-        uses: actions/cache@v5
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest anyio asyncio pyyaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
         with:
           path: |
-            app/libs/libcore.aar
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}-ci
-      - name: Install Golang
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/setup-go@v6
-        with:
-          go-version: 1.26.5
-      - name: Native Build
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: ./run lib core
-  build:
-    name: Build OSS APK
-    runs-on: ubuntu-latest
-    needs:
-      - libcore
+            ~/.cargo/registry
+            ~/.cargo/git
+            core_manager/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('core_manager/Cargo.lock', 'core_manager/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+
+      - name: Run Test Suite (test.sh)
+        run: |
+          chmod +x test.sh
+          ./test.sh
+
+  build-cli:
+    name: Build CLI (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          submodules: recursive
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Golang Status
-        run: find buildScript libcore/*.sh | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            app/libs/libcore.aar
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}-ci
-      - name: HevTun Status
-        run: |
-          git submodule status hev-socks5-tunnel > hev_status
-          cat buildScript/compile-hevtun.sh | sha1sum >> hev_status
-      - name: HevTun Cache
-        uses: actions/cache@v5
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
         with:
           path: |
-            app/src/main/jniLibs
-          key: hevtun-${{ hashFiles('.github/workflows/*', 'hev_status') }}-ci
-      - name: Gradle cache
-        uses: actions/cache@v5
+            ~/.cargo/registry
+            ~/.cargo/git
+            core_manager/target
+          key: ${{ runner.os }}-cargo-build-${{ matrix.target }}-${{ hashFiles('core_manager/Cargo.lock', 'core_manager/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-${{ matrix.target }}-
+
+      - name: Build nbpfpc CLI
+        working-directory: core_manager
+        run: cargo build --release --target ${{ matrix.target }}
+
+  build-core:
+    name: Build Core (sing-box)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          path: ~/.gradle
-          key: gradle-oss-${{ hashFiles('**/*.gradle.kts') }}-ci
-      - name: Gradle Build
-        env:
-          BUILD_PLUGIN: none
+          go-version: '1.24'
+
+      - name: Build sing-box desktop core
         run: |
-          echo "sdk.dir=${ANDROID_HOME}" > local.properties
-          echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
-          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
-          ./run init action gradle
-          ./gradlew app:assembleOssDebug
-          APK=$(find app/build/outputs/apk -name '*arm64-v8a*.apk')
-          APK=$(dirname $APK)
-          echo "APK=$APK" >> $GITHUB_ENV
-      # - name: Upload Artifacts
-      #   uses: actions/upload-artifact@v5
-      #   with:
-      #     name: APKs
-      #     path: ${{ env.APK }}
+          cd libcore
+          go build -v -tags "with_conntrack,with_gvisor,with_quic,with_wireguard,with_awg,with_utls,with_clash_api" -o singbox ./cmd/cli
+          ls -la singbox

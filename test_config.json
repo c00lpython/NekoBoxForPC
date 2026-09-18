@@ -1,0 +1,112 @@
+{
+  "dns": {
+    "final": "dns-remote",
+    "independent_cache": true,
+    "rules": [
+      {
+        "geosite": [
+          "cn",
+          "category-ru",
+          "yandex",
+          "vk",
+          "mailru"
+        ],
+        "server": "dns-direct"
+      }
+    ],
+    "servers": [
+      {
+        "detour": "WARP",
+        "server": "1.1.1.1",
+        "tag": "dns-remote",
+        "type": "https"
+      },
+      {
+        "detour": "direct",
+        "tag": "dns-direct",
+        "type": "local"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db"
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090"
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "address": [
+        "172.16.0.2/32",
+        "2606:4700:110:8ad2:5e94:9959:e65b:ef3d/128"
+      ],
+      "peer_public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+      "private_key": "tw1IEg0qgqzXCgboO4GHaD0U2suLTpEKwzf4swV4ZmY=",
+      "server": "188.114.97.66",
+      "server_port": 4500,
+      "tag": "WARP",
+      "type": "wireguard"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    },
+    {
+      "tag": "dns-out",
+      "type": "dns"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "final": "WARP",
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "outbound": "dns-out",
+        "protocol": "dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "geosite": [
+          "category-ru",
+          "cn",
+          "private"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "geoip": [
+          "ru",
+          "cn",
+          "private"
+        ],
+        "outbound": "direct"
+      }
+    ]
+  }
+}

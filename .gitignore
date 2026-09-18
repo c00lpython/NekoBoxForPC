@@ -40,3 +40,31 @@ libcore/nekobox-cli.exe
 !/singbox/Linux/.gitkeep
 /singbox/MacOS/*
 !/singbox/MacOS/.gitkeep
+
+# Desktop binaries and release distributions
+*.exe
+*.dll
+*.so
+*.dylib
+*.tar.gz
+*.zip
+release_dist/
+core_manager/target/
+
+# Logs and runtime databases
+*.log
+logs/
+cache/
+cache.db
+temp/
+.runtime/
+builds/*/profile/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+
+# Temporary test scripts
+test_bind*.go
+test_listen*.go
+

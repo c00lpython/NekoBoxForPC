@@ -1,112 +1,195 @@
-name: Release Build
+name: Multi-Platform Release
+
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release Tag"
-        required: true
-      publish:
-        description: "Publish: If want ignore"
+      version_tag:
+        description: 'Version tag (e.g. v1.0.0-beta)'
         required: false
+        default: 'v1.0.0-beta'
+
+permissions:
+  contents: write
+
 jobs:
-  libcore:
-    name: Native Build (LibCore)
+  test:
+    name: Pre-Release Test Suite
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          submodules: recursive
-      - name: Golang Status
-        run: find buildScript libcore/*.sh | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        id: cache
-        uses: actions/cache@v5
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          path: |
-            app/libs/libcore.aar
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}
-      - name: Install Golang
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/setup-go@v6
-        with:
-          go-version: 1.26.5
-      - name: Native Build
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: ./run lib core
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest anyio asyncio pyyaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Test Suite
+        run: |
+          chmod +x test.sh
+          ./test.sh
+
   build:
-    name: Build OSS APK
-    runs-on: ubuntu-latest
-    needs:
-      - libcore
+    name: Build ${{ matrix.name }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: nbpfpc-windows-x64.zip
+            bin: nbpfpc.exe
+            archive: zip
+            rustflags: ""
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: nbpfpc-windows7-x64.zip
+            bin: nbpfpc.exe
+            archive: zip
+            rustflags: "-C target-feature=+crt-static"
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            name: nbpfpc-linux-x64.tar.gz
+            bin: nbpfpc
+            archive: tar.gz
+            rustflags: ""
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: nbpfpc-macos-arm64.tar.gz
+            bin: nbpfpc
+            archive: tar.gz
+            rustflags: ""
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: nbpfpc-macos-x64.tar.gz
+            bin: nbpfpc
+            archive: tar.gz
+            rustflags: ""
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          submodules: recursive
-      - name: Golang Status
-        run: find buildScript libcore/*.sh | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            app/libs/libcore.aar
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}
-      - name: HevTun Status
-        run: |
-          git submodule status hev-socks5-tunnel > hev_status
-          cat buildScript/compile-hevtun.sh | sha1sum >> hev_status
-      - name: HevTun Cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            app/src/main/jniLibs
-          key: hevtun-${{ hashFiles('.github/workflows/*', 'hev_status') }}
-      - name: Gradle cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.gradle
-          key: gradle-oss-${{ hashFiles('**/*.gradle.kts') }}
-      - name: Gradle Build
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build release binary
+        working-directory: core_manager
         env:
-          BUILD_PLUGIN: none
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package artifacts (Windows)
+        if: matrix.archive == 'zip'
+        shell: bash
         run: |
-          echo "sdk.dir=${ANDROID_HOME}" > local.properties
-          echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
-          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
-          ./run init action gradle
-          KEYSTORE_PASS="${{ secrets.KEYSTORE_PASS }}" ALIAS_NAME="${{ secrets.ALIAS_NAME }}" ALIAS_PASS="${{ secrets.ALIAS_PASS}}" ./gradlew app:assembleOssRelease
-          APK=$(find app/build/outputs/apk -name '*arm64-v8a*.apk')
-          APK=$(dirname $APK)
-          echo "APK=$APK" >> $GITHUB_ENV
-      - uses: actions/upload-artifact@v5
+          cd core_manager/target/${{ matrix.target }}/release
+          7z a ../../../../${{ matrix.name }} ${{ matrix.bin }}
+
+      - name: Package artifacts (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd core_manager/target/${{ matrix.target }}/release
+          tar -czvf ../../../../${{ matrix.name }} ${{ matrix.bin }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: APKs
-          path: ${{ env.APK }}
-  publish:
-    name: Publish Release
-    if: github.event.inputs.publish != 'y'
-    runs-on: ubuntu-latest
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  release:
+    name: Generate Changelog & Publish Release
     needs: build
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          submodules: recursive
-      - name: Donwload Artifacts
-        uses: actions/download-artifact@v5
+          fetch-depth: 0
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: APKs
-          path: artifacts
-      - name: Release
+          path: release_assets
+          merge-multiple: true
+
+      - name: Compute SHA256 Checksums
         run: |
-          wget -O ghr.tar.gz https://github.com/tcnksm/ghr/releases/download/v0.13.0/ghr_v0.13.0_linux_amd64.tar.gz
-          tar -xvf ghr.tar.gz
-          mv ghr*linux_amd64/ghr .
-          mkdir apks
-          find artifacts -name "*.apk" -exec cp {} apks \;
-          ./ghr -delete -t "${{ github.token }}" -n "${{ github.event.inputs.tag }}" "${{ github.event.inputs.tag }}" apks
+          cd release_assets
+          sha256sum * > SHA256SUMS.txt
+          echo "=== SHA256 Checksums ==="
+          cat SHA256SUMS.txt
+
+      - name: Generate Changelog from Git Log
+        id: changelog
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [[ "$TAG_NAME" == *"/"* ]]; then
+            TAG_NAME="${{ github.event.inputs.version_tag }}"
+          fi
+          [ -z "$TAG_NAME" ] && TAG_NAME="v1.0.0-beta"
+
+          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || echo "")
+
+          echo "Generating changelog for tag $TAG_NAME (previous: ${PREV_TAG:-initial})..."
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${TAG_NAME}"
+          else
+            RANGE="${TAG_NAME}"
+          fi
+
+          echo "## Release Notes ($TAG_NAME)" > release_notes.md
+          echo "" >> release_notes.md
+          echo "### 🚀 Новые возможности (Features)" >> release_notes.md
+          git log "$RANGE" --grep="^feat" --pretty=format:"* %s (%h)" >> release_notes.md || true
+          echo "" >> release_notes.md
+
+          echo "### 🐛 Исправления ошибок (Fixes)" >> release_notes.md
+          git log "$RANGE" --grep="^fix" --pretty=format:"* %s (%h)" >> release_notes.md || true
+          echo "" >> release_notes.md
+
+          echo "### 🛠 Сборка и внутренняя архитектура" >> release_notes.md
+          git log "$RANGE" --grep="^\(chore\|build\|ci\|refactor\)" --pretty=format:"* %s (%h)" >> release_notes.md || true
+          echo "" >> release_notes.md
+
+          echo "### 📦 Все изменения" >> release_notes.md
+          git log "$RANGE" --pretty=format:"* %s (%h)" --no-merges -n 30 >> release_notes.md
+          echo "" >> release_notes.md
+
+          echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_ENV
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "NekoBoxPlusForPC CLI ${{ env.RELEASE_TAG }}"
+          prerelease: true
+          body_path: release_notes.md
+          files: release_assets/*

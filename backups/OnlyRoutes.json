@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "name": "OnlyRoutes",
+    "created_at": 1789661244,
+    "app_version": "0.1.0",
+    "includes_configs": false,
+    "includes_routes": true,
+    "includes_settings": false
+  },
+  "rules": [
+    {
+      "name": "BackupRule",
+      "action": "direct",
+      "site": [
+        "backup-example.com"
+      ],
+      "ip": [
+        "10.50.0.1/32"
+      ],
+      "enabled": true
+    }
+  ]
+}
