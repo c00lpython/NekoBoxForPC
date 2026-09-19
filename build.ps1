@@ -40,7 +40,6 @@ if ($Help -or $Target -eq "help") {
     exit 0
 }
 
-# 1. Сборка ядра (sing-box / libcore)
 function Build-Core {
     param([string]$OS)
     Write-Host "===> [CORE] Запуск сборки sing-box ядра..." -ForegroundColor Cyan
@@ -62,7 +61,6 @@ function Build-Core {
     }
 }
 
-# 2. Сборка CLI (nbpfpc на Rust)
 function Build-Cli {
     param([string]$OS, [bool]$PackDist)
     Write-Host "===> [CLI] Сборка Rust CLI менеджера nbpfpc..." -ForegroundColor Cyan
@@ -75,78 +73,14 @@ function Build-Cli {
         $distDir = "$ScriptDir\release_dist"
         if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir | Out-Null }
 
-        $version = "v1.0.1-beta"
-
-        # 1. Windows 10/11 x64 (rustls — по умолчанию)
-        Write-Host "[1/6] Сборка Windows 10/11 x64 (rustls)..." -ForegroundColor Yellow
-        $env:RUSTFLAGS = ""
         cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml"
         Copy-Item "$targetDir\release\nbpfpc.exe" "$ScriptDir\nbpfpc.exe" -Force
-        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-$version-windows-x64.zip" -Force
+        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-v1.0.0-beta-windows-x64.zip" -Force
 
-        # 2. Windows 7+ x64 (native-tls/Schannel + static CRT)
-        Write-Host "[2/6] Сборка Windows 7+ x64 (native-tls, static CRT)..." -ForegroundColor Yellow
         $env:RUSTFLAGS = "-C target-feature=+crt-static"
-        cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --no-default-features --features win7-tls
+        cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml"
         $env:RUSTFLAGS = ""
-        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-$version-windows7-x64.zip" -Force
-
-        # 3. Windows 7+ x86 32-bit (native-tls/Schannel + static CRT)
-        Write-Host "[3/6] Сборка Windows 7+ x86 32-bit (native-tls, static CRT)..." -ForegroundColor Yellow
-        $env:RUSTFLAGS = "-C target-feature=+crt-static"
-        cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target i686-pc-windows-msvc --no-default-features --features win7-tls
-        $env:RUSTFLAGS = ""
-        Compress-Archive -Path "$targetDir\i686-pc-windows-msvc\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-$version-windows7-x86.zip" -Force
-
-        # Кросс-компиляция через cargo-zigbuild при наличии zig
-        $hasZig = (Get-Command zig -ErrorAction SilentlyContinue) -ne $null
-        $hasZigbuild = (Get-Command cargo-zigbuild -ErrorAction SilentlyContinue) -ne $null
-
-        if ($hasZig -and $hasZigbuild) {
-            # 4. Linux x86_64 musl (rustls — по умолчанию)
-            Write-Host "[4/6] Сборка Linux musl x86_64 (rustls)..." -ForegroundColor Yellow
-            cargo zigbuild --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target x86_64-unknown-linux-musl
-            tar -czf "$distDir\nbpfpc-$version-linux-x64.tar.gz" -C "$targetDir\x86_64-unknown-linux-musl\release" nbpfpc
-
-            # 5. macOS Apple Silicon ARM64 (rustls)
-            Write-Host "[5/6] Сборка macOS ARM64 Apple Silicon (rustls)..." -ForegroundColor Yellow
-            cargo zigbuild --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target aarch64-apple-darwin
-            tar -czf "$distDir\nbpfpc-$version-macos-arm64.tar.gz" -C "$targetDir\aarch64-apple-darwin\release" nbpfpc
-
-            # 6. macOS Intel x86_64 (rustls)
-            Write-Host "[6/6] Сборка macOS Intel x86_64 (rustls)..." -ForegroundColor Yellow
-            cargo zigbuild --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target x86_64-apple-darwin
-            tar -czf "$distDir\nbpfpc-$version-macos-x64.tar.gz" -C "$targetDir\x86_64-apple-darwin\release" nbpfpc
-        } else {
-            Write-Host "[WARN] zig / cargo-zigbuild не найдены. Кросс-компиляция под Linux/macOS пропущена." -ForegroundColor Yellow
-        }
-
-        # Сборка и упаковка полных бандлов (CLI + sing-box core + metacubexd UI)
-        Write-Host "-> Сборка и упаковка готовых бандлов со всеми компонентами..." -ForegroundColor Cyan
-        & "$ScriptDir\build_desktop.ps1" -TargetOS "all" -SkipCore
-
-        # Генерация SHA256SUMS.txt
-        Set-Location $distDir
-        Get-FileHash -Algorithm SHA256 (Get-ChildItem -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }) | ForEach-Object {
-            $fn = Split-Path $_.Path -Leaf
-            "$($_.Hash.ToLower())  $fn"
-        } | Set-Content -Path "SHA256SUMS.txt" -Encoding ASCII
-        Set-Location $ScriptDir
-
-        # Синхронизация архивов и манифеста в папку builds/
-        $buildsDir = "$ScriptDir\builds"
-        New-Item -ItemType Directory -Force -Path $buildsDir | Out-Null
-        Get-ChildItem -Path $distDir -Filter "*.zip" | ForEach-Object {
-            Copy-Item $_.FullName "$buildsDir\" -Force
-        }
-        Get-ChildItem -Path $distDir -Filter "*.tar.gz" | ForEach-Object {
-            Copy-Item $_.FullName "$buildsDir\" -Force
-        }
-        if (Test-Path "$distDir\SHA256SUMS.txt") {
-            Copy-Item "$distDir\SHA256SUMS.txt" "$buildsDir\" -Force
-        }
-
-        Write-Host "-> Все дистрибутивы (CLI + singbox + metacubexd) успешно собраны в: $buildsDir" -ForegroundColor Green
+        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-v1.0.0-beta-windows7-x64.zip" -Force
     } else {
         Write-Host "-> Сборка для текущей операционной системы..." -ForegroundColor Yellow
         cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml"
@@ -165,20 +99,17 @@ function Build-Cli {
     }
 }
 
-# 3. Десктопное приложение
 function Build-App {
     Write-Host "===> [APP] Сборка десктопного приложения..." -ForegroundColor Cyan
     Write-Host "[INFO] Компонент 'app' является экспериментальным и находится в стадии активной разработки (GUI Python/PySide6)." -ForegroundColor Yellow
     Write-Host "[INFO] Сборка пакета 'app' в данный момент отключена согласно конфигурации проекта." -ForegroundColor Yellow
 }
 
-# 4. Тестирование
 function Run-Tests {
     Write-Host "===> [TEST] Запуск полного набора тестов..." -ForegroundColor Cyan
     & "$ScriptDir\test.ps1"
 }
 
-# Маршрутизация команды
 switch ($Target.ToLower()) {
     "core" { Build-Core $TargetOS }
     "cli"  { Build-Cli $TargetOS $Dist.IsPresent }

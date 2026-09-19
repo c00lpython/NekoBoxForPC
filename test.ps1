@@ -1,4 +1,4 @@
-﻿# test.ps1 - Единый запуск тестирования проекта NekoBoxForPC
+# test.ps1 - Единый запуск тестирования проекта NekoBoxForPC
 param(
     [switch]$Fast
 )

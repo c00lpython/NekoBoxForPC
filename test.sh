@@ -13,7 +13,6 @@ echo ""
 echo "[1/3] Проверка на маркеры конфликтов слияния git..."
 MARKER_PATTERN="<<<<<<"$'\x3c'" HEAD"
 if git grep -l "$MARKER_PATTERN" -- ":!test.ps1" ":!test.sh" 2>/dev/null; then
-
     echo "[ERROR] Обнаружены маркеры конфликтов git!"
     exit 1
 else
