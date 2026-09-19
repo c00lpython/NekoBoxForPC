@@ -420,6 +420,21 @@ pub struct ConfigStoreData {
     pub geo_files: Vec<StoredGeoFile>,
 }
 
+/// Возвращает базовый каталог данных приложения `data/` в папке исполняемого файла.
+/// Если путь к exe недоступен, используется `./data`.
+pub fn get_data_dir() -> PathBuf {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let p = exe_dir.join("data");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+    let p = PathBuf::from("data");
+    let _ = fs::create_dir_all(&p);
+    p
+}
+
 pub struct ConfigStore {
     path: PathBuf,
     pub data: ConfigStoreData,
@@ -427,7 +442,16 @@ pub struct ConfigStore {
 
 impl ConfigStore {
     pub fn default_path() -> PathBuf {
-        PathBuf::from(".runtime").join("store.json")
+        let data_dir = get_data_dir();
+        // Автоматическая миграция со старого .runtime/store.json, если новый еще не существует
+        let legacy_store = PathBuf::from(".runtime").join("store.json");
+        let target_store = data_dir.join("store.json");
+        if !target_store.exists() && legacy_store.exists() {
+            if let Ok(content) = fs::read_to_string(&legacy_store) {
+                let _ = fs::write(&target_store, content);
+            }
+        }
+        target_store
     }
 
     pub fn load_or_default(custom_path: Option<PathBuf>) -> Self {
@@ -742,7 +766,7 @@ impl ConfigStore {
     // --- Управление гео-файлами в LocalStorage ---
 
     pub fn get_geo_dir(&self) -> PathBuf {
-        let base = self.path.parent().unwrap_or_else(|| std::path::Path::new(".runtime"));
+        let base = self.path.parent().map(|p| p.to_path_buf()).unwrap_or_else(get_data_dir);
         let dir = base.join("geo");
         let _ = fs::create_dir_all(&dir);
         dir

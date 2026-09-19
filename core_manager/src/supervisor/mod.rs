@@ -63,32 +63,184 @@ impl CoreSupervisor {
     }
 
     /// Автоматический поиск бинарника ядра singbox.
+    ///
+    /// Порядок поиска:
+    /// 1. Текущий каталог и подкаталоги (legacy пути)
+    /// 2. Каталог рядом с исполняемым файлом `nbpfpc`
+    /// 3. Системный PATH (`where` на Windows, `which` на Unix)
+    /// 4. Стандартные системные каталоги ОС
+    /// Автоматический поиск исполняемого файла ядра sing-box по цепочке приоритетов:
+    /// 1. Каталог исполняемого файла nbpfpc (высший приоритет - ядро рядом с приложением)
+    /// 2. Относительные пути от текущего рабочего каталога (singbox.exe, singbox/Windows/singbox.exe и др.)
+    /// 3. Системный PATH (`where` на Windows, `which` на Unix)
+    /// 4. Стандартные системные каталоги ОС
     pub fn find_default_core_path() -> Option<PathBuf> {
-        let candidates = [
-            "sing-box.exe",
+        let exe_names: &[&str] = if cfg!(windows) {
+            &["singbox.exe", "sing-box.exe"]
+        } else {
+            &["singbox", "sing-box"]
+        };
+
+        // 1. Каталог исполняемого файла nbpfpc (наивысший приоритет: ядро "внутри" дистрибутива)
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                for name in exe_names {
+                    let candidate = exe_dir.join(name);
+                    if candidate.exists() {
+                        return Some(candidate);
+                    }
+                }
+                // Подкаталог singbox/ рядом с exe
+                let platform_subdir = if cfg!(windows) {
+                    if Self::is_windows_7() {
+                        "Windows7"
+                    } else {
+                        "Windows"
+                    }
+                } else if cfg!(target_os = "macos") {
+                    "MacOS"
+                } else {
+                    "Linux"
+                };
+                let subdir_candidate = exe_dir
+                    .join("singbox")
+                    .join(platform_subdir)
+                    .join(if cfg!(windows) { "singbox.exe" } else { "singbox" });
+                if subdir_candidate.exists() {
+                    return Some(subdir_candidate);
+                }
+            }
+        }
+
+        // 2. Относительные пути (legacy) — от текущего рабочего каталога
+        let relative_candidates = [
             "singbox.exe",
+            "sing-box.exe",
             "singbox/Windows/singbox.exe",
+            "singbox/Windows7/singbox.exe",
+            "../singbox.exe",
             "../sing-box.exe",
             "../singbox/Windows/singbox.exe",
+            "../singbox/Windows7/singbox.exe",
             "singbox/Linux/singbox",
+            "singbox/MacOS/singbox",
             "singbox",
         ];
 
-        for c in candidates {
+        for c in relative_candidates {
             let path = PathBuf::from(c);
             if path.exists() {
                 return Some(path);
             }
         }
 
+        // 3. Поиск в системном PATH
+        if let Some(found) = Self::find_in_system_path(exe_names) {
+            return Some(found);
+        }
+
+        // 4. Стандартные системные каталоги
+        let system_dirs = Self::get_system_search_dirs();
+        for dir in system_dirs {
+            for name in exe_names {
+                let candidate = dir.join(name);
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+            }
+        }
+
         None
+    }
+
+    /// Поиск исполняемого файла в системном PATH.
+    fn find_in_system_path(names: &[&str]) -> Option<PathBuf> {
+        if let Ok(path_var) = std::env::var("PATH") {
+            let separator = if cfg!(windows) { ';' } else { ':' };
+            for dir_str in path_var.split(separator) {
+                let dir = PathBuf::from(dir_str);
+                for name in names {
+                    let candidate = dir.join(name);
+                    if candidate.exists() {
+                        return Some(candidate);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Стандартные каталоги для поиска ядра на разных ОС.
+    fn get_system_search_dirs() -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+
+        #[cfg(windows)]
+        {
+            // Windows стандартные пути
+            if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+                dirs.push(PathBuf::from(&local_app_data).join("NekoBox"));
+                dirs.push(PathBuf::from(&local_app_data).join("NekoBoxPlus"));
+            }
+            if let Ok(program_files) = std::env::var("ProgramFiles") {
+                dirs.push(PathBuf::from(&program_files).join("NekoBox"));
+                dirs.push(PathBuf::from(&program_files).join("NekoBoxPlus"));
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            // Unix стандартные пути
+            dirs.push(PathBuf::from("/usr/local/bin"));
+            dirs.push(PathBuf::from("/opt/nekobox"));
+            if let Ok(home) = std::env::var("HOME") {
+                dirs.push(PathBuf::from(&home).join(".local/bin"));
+                dirs.push(PathBuf::from(&home).join(".nekobox"));
+            }
+        }
+
+        dirs
+    }
+
+    /// Определяет, запущен ли процесс на Windows 7 (для авто-выбора legacy бинарника).
+    ///
+    /// Возвращает `true` на Windows 7/Server 2008 R2 (NT 6.1).
+    /// На non-Windows всегда `false`.
+    pub fn is_windows_7() -> bool {
+        #[cfg(windows)]
+        {
+            // Проверка через переменную окружения — простой и надёжный способ
+            if let Ok(ver) = std::env::var("OS") {
+                if ver != "Windows_NT" {
+                    return false;
+                }
+            }
+            // Проверяем winver через `ver` command output или registry.
+            // Простой эвристический подход: если нет bcryptprimitives.dll в System32,
+            // предполагаем Win7.
+            let system32 = std::env::var("SystemRoot")
+                .unwrap_or_else(|_| "C:\\Windows".to_string());
+            let bcrypt_path = PathBuf::from(&system32)
+                .join("System32")
+                .join("bcryptprimitives.dll");
+            // На Windows 8+ этот файл всегда есть, на Win7 — нет
+            !bcrypt_path.exists()
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
+    /// Определяет, запущен ли процесс на 32-битной архитектуре (x86).
+    pub fn is_x86_arch() -> bool {
+        cfg!(target_arch = "x86")
     }
 
     /// Запускает ядро sing-box с сгенерированной Ultimate-конфигурацией.
     pub async fn start(&self, config: Value) -> Result<(), String> {
-        let runtime_dir = Path::new(".runtime");
-        let _ = tokio::fs::create_dir_all(runtime_dir).await;
-        let config_path = runtime_dir.join("active_singbox_config.json");
+        let data_dir = crate::storage::get_data_dir();
+        let _ = tokio::fs::create_dir_all(&data_dir).await;
+        let config_path = data_dir.join("active_singbox_config.json");
 
         let config_str = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Ошибка сериализации конфига: {}", e))?;
@@ -106,9 +258,9 @@ impl CoreSupervisor {
             return Err("Ядро уже запущено".into());
         }
 
-        // Создаем каталог logs/
-        let logs_dir = Path::new("logs");
-        let _ = tokio::fs::create_dir_all(logs_dir).await;
+        // Создаем каталог logs/ внутри data/
+        let logs_dir = crate::storage::get_data_dir().join("logs");
+        let _ = tokio::fs::create_dir_all(&logs_dir).await;
 
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -1,4 +1,4 @@
-﻿# build.ps1 - Унифицированный скрипт сборки NekoBoxForPC
+# build.ps1 - Унифицированный скрипт сборки NekoBoxForPC
 param(
     [Parameter(Position=0)]
     [ValidateSet("core", "cli", "app", "all", "test", "help")]
@@ -75,41 +75,55 @@ function Build-Cli {
         $distDir = "$ScriptDir\release_dist"
         if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir | Out-Null }
 
-        # 1. Windows 10/11 x64
-        Write-Host "[1/5] Сборка Windows 10/11 x64..." -ForegroundColor Yellow
+        $version = "v1.0.1-beta"
+
+        # 1. Windows 10/11 x64 (rustls — по умолчанию)
+        Write-Host "[1/6] Сборка Windows 10/11 x64 (rustls)..." -ForegroundColor Yellow
+        $env:RUSTFLAGS = ""
         cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml"
         Copy-Item "$targetDir\release\nbpfpc.exe" "$ScriptDir\nbpfpc.exe" -Force
-        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-v1.0.0-beta-windows-x64.zip" -Force
+        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-$version-windows-x64.zip" -Force
 
-        # 2. Windows 7 x64 (static CRT)
-        Write-Host "[2/5] Сборка Windows 7 x64 (Static CRT)..." -ForegroundColor Yellow
+        # 2. Windows 7+ x64 (native-tls/Schannel + static CRT)
+        Write-Host "[2/6] Сборка Windows 7+ x64 (native-tls, static CRT)..." -ForegroundColor Yellow
         $env:RUSTFLAGS = "-C target-feature=+crt-static"
-        cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml"
+        cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --no-default-features --features win7-tls
         $env:RUSTFLAGS = ""
-        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-v1.0.0-beta-windows7-x64.zip" -Force
+        Compress-Archive -Path "$targetDir\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-$version-windows7-x64.zip" -Force
+
+        # 3. Windows 7+ x86 32-bit (native-tls/Schannel + static CRT)
+        Write-Host "[3/6] Сборка Windows 7+ x86 32-bit (native-tls, static CRT)..." -ForegroundColor Yellow
+        $env:RUSTFLAGS = "-C target-feature=+crt-static"
+        cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target i686-pc-windows-msvc --no-default-features --features win7-tls
+        $env:RUSTFLAGS = ""
+        Compress-Archive -Path "$targetDir\i686-pc-windows-msvc\release\nbpfpc.exe" -DestinationPath "$distDir\nbpfpc-$version-windows7-x86.zip" -Force
 
         # Кросс-компиляция через cargo-zigbuild при наличии zig
         $hasZig = (Get-Command zig -ErrorAction SilentlyContinue) -ne $null
         $hasZigbuild = (Get-Command cargo-zigbuild -ErrorAction SilentlyContinue) -ne $null
 
         if ($hasZig -and $hasZigbuild) {
-            # 3. Linux x86_64 musl
-            Write-Host "[3/5] Сборка Linux musl x86_64..." -ForegroundColor Yellow
+            # 4. Linux x86_64 musl (rustls — по умолчанию)
+            Write-Host "[4/6] Сборка Linux musl x86_64 (rustls)..." -ForegroundColor Yellow
             cargo zigbuild --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target x86_64-unknown-linux-musl
-            tar -czf "$distDir\nbpfpc-v1.0.0-beta-linux-x64.tar.gz" -C "$targetDir\x86_64-unknown-linux-musl\release" nbpfpc
+            tar -czf "$distDir\nbpfpc-$version-linux-x64.tar.gz" -C "$targetDir\x86_64-unknown-linux-musl\release" nbpfpc
 
-            # 4. macOS Apple Silicon ARM64
-            Write-Host "[4/5] Сборка macOS ARM64 (Apple Silicon)..." -ForegroundColor Yellow
+            # 5. macOS Apple Silicon ARM64 (rustls)
+            Write-Host "[5/6] Сборка macOS ARM64 Apple Silicon (rustls)..." -ForegroundColor Yellow
             cargo zigbuild --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target aarch64-apple-darwin
-            tar -czf "$distDir\nbpfpc-v1.0.0-beta-macos-arm64.tar.gz" -C "$targetDir\aarch64-apple-darwin\release" nbpfpc
+            tar -czf "$distDir\nbpfpc-$version-macos-arm64.tar.gz" -C "$targetDir\aarch64-apple-darwin\release" nbpfpc
 
-            # 5. macOS Intel x86_64
-            Write-Host "[5/5] Сборка macOS Intel x86_64..." -ForegroundColor Yellow
+            # 6. macOS Intel x86_64 (rustls)
+            Write-Host "[6/6] Сборка macOS Intel x86_64 (rustls)..." -ForegroundColor Yellow
             cargo zigbuild --release --manifest-path "$ScriptDir\core_manager\Cargo.toml" --target x86_64-apple-darwin
-            tar -czf "$distDir\nbpfpc-v1.0.0-beta-macos-x64.tar.gz" -C "$targetDir\x86_64-apple-darwin\release" nbpfpc
+            tar -czf "$distDir\nbpfpc-$version-macos-x64.tar.gz" -C "$targetDir\x86_64-apple-darwin\release" nbpfpc
         } else {
             Write-Host "[WARN] zig / cargo-zigbuild не найдены. Кросс-компиляция под Linux/macOS пропущена." -ForegroundColor Yellow
         }
+
+        # Сборка и упаковка полных бандлов (CLI + sing-box core + metacubexd UI)
+        Write-Host "-> Сборка и упаковка готовых бандлов со всеми компонентами..." -ForegroundColor Cyan
+        & "$ScriptDir\build_desktop.ps1" -TargetOS "all" -SkipCore
 
         # Генерация SHA256SUMS.txt
         Set-Location $distDir
@@ -119,7 +133,20 @@ function Build-Cli {
         } | Set-Content -Path "SHA256SUMS.txt" -Encoding ASCII
         Set-Location $ScriptDir
 
-        Write-Host "-> Все дистрибутивы упакованы в: $distDir" -ForegroundColor Green
+        # Синхронизация архивов и манифеста в папку builds/
+        $buildsDir = "$ScriptDir\builds"
+        New-Item -ItemType Directory -Force -Path $buildsDir | Out-Null
+        Get-ChildItem -Path $distDir -Filter "*.zip" | ForEach-Object {
+            Copy-Item $_.FullName "$buildsDir\" -Force
+        }
+        Get-ChildItem -Path $distDir -Filter "*.tar.gz" | ForEach-Object {
+            Copy-Item $_.FullName "$buildsDir\" -Force
+        }
+        if (Test-Path "$distDir\SHA256SUMS.txt") {
+            Copy-Item "$distDir\SHA256SUMS.txt" "$buildsDir\" -Force
+        }
+
+        Write-Host "-> Все дистрибутивы (CLI + singbox + metacubexd) успешно собраны в: $buildsDir" -ForegroundColor Green
     } else {
         Write-Host "-> Сборка для текущей операционной системы..." -ForegroundColor Yellow
         cargo build --release --manifest-path "$ScriptDir\core_manager\Cargo.toml"

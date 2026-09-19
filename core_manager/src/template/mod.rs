@@ -2,6 +2,83 @@
 
 use crate::models::ProfileConfig;
 use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
+
+/// Разрешает путь к UI-директории (metacubexd) в абсолютный.
+///
+/// Если передан относительный путь, он разрешается относительно каталога
+/// текущего исполняемого файла (`nbpfpc.exe`), а не рабочего каталога процесса.
+/// Это гарантирует, что sing-box найдёт metacubexd независимо от `cwd`.
+///
+/// Порядок поиска:
+/// 1. Абсолютный путь — возвращается как есть
+/// 2. Относительно каталога исполняемого файла
+/// 3. Относительно текущего рабочего каталога
+/// 4. Fallback — возвращается исходный путь без изменений
+pub fn resolve_ui_path(ui_dir: &str) -> String {
+    let ui_path = Path::new(ui_dir);
+
+    // Абсолютный путь — возвращаем как есть
+    if ui_path.is_absolute() && ui_path.exists() {
+        return ui_dir.to_string();
+    }
+
+    // Поиск относительно каталога исполняемого файла
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let candidate = exe_dir.join(ui_dir);
+            if candidate.exists() && candidate.is_dir() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    // Поиск относительно текущего рабочего каталога
+    if let Ok(cwd) = std::env::current_dir() {
+        let candidate = cwd.join(ui_dir);
+        if candidate.exists() && candidate.is_dir() {
+            return candidate.to_string_lossy().to_string();
+        }
+    }
+
+    // Fallback: оставляем как есть (sing-box попробует скачать через download_url)
+    ui_dir.to_string()
+}
+
+/// Поиск директории metacubexd по стандартным каталогам.
+///
+/// Возвращает абсолютный путь к найденной папке metacubexd или None.
+pub fn find_metacubexd_dir() -> Option<PathBuf> {
+    let candidates = [
+        "metacubexd",
+        "../metacubexd",
+    ];
+
+    // Относительно исполняемого файла
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            for c in &candidates {
+                let path = exe_dir.join(c);
+                if path.exists() && path.is_dir() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+
+    // Относительно рабочего каталога
+    if let Ok(cwd) = std::env::current_dir() {
+        for c in &candidates {
+            let path = cwd.join(c);
+            if path.exists() && path.is_dir() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 
 /// Сегмент пути в JSON-структуре (ключ словаря или числовой индекс массива).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,6 +306,8 @@ pub fn get_default_master_template() -> Value {
             "clash_api": {
                 "external_controller": "127.0.0.1:9090",
                 "external_ui": "metacubexd",
+                "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip",
+                "external_ui_download_detour": "direct",
                 "secret": "",
                 "default_mode": "rule"
             },
@@ -489,9 +568,37 @@ impl UltimateConfigBuilder {
     }
 
     /// Настраивает адрес и порт Clash API (для Metacubexd).
+    ///
+    /// Принимает адрес контроллера, путь к UI и опциональный секрет.
+    /// Если `ui_dir` — относительный путь, он разрешается относительно каталога исполняемого файла,
+    /// чтобы sing-box мог найти metacubexd независимо от текущего рабочего каталога.
     pub fn set_clash_api(&mut self, listen_addr: &str, ui_dir: &str) -> Result<&mut Self, String> {
         self.inject("[experimental][clash_api][external_controller]", json!(listen_addr))?;
-        self.inject("[experimental][clash_api][external_ui]", json!(ui_dir))?;
+
+        // Разрешаем относительный путь UI в абсолютный через каталог бинарника
+        let resolved_ui_dir = resolve_ui_path(ui_dir);
+        self.inject("[experimental][clash_api][external_ui]", json!(resolved_ui_dir))?;
+
+        Ok(self)
+    }
+
+    /// Полная настройка Clash API: адрес, UI, секрет, download fallback.
+    ///
+    /// Используется для гарантированной работы metacubexd даже при отсутствии локальной папки:
+    /// sing-box автоматически скачает UI по `download_url` через detour `direct`.
+    pub fn set_clash_api_full(
+        &mut self,
+        listen_addr: &str,
+        ui_dir: &str,
+        secret: &str,
+        download_url: Option<&str>,
+    ) -> Result<&mut Self, String> {
+        self.set_clash_api(listen_addr, ui_dir)?;
+        self.inject("[experimental][clash_api][secret]", json!(secret))?;
+        if let Some(url) = download_url {
+            self.inject("[experimental][clash_api][external_ui_download_url]", json!(url))?;
+            self.inject("[experimental][clash_api][external_ui_download_detour]", json!("direct"))?;
+        }
         Ok(self)
     }
 
@@ -516,6 +623,8 @@ impl UltimateConfigBuilder {
             if geosite.exists() {
                 let _ = self.inject("[route][geosite][path]", json!(geosite.to_string_lossy().to_string()));
             }
+            let cache_db = dir.join("..").join("cache.db");
+            let _ = self.inject("[experimental][cache_file][path]", json!(cache_db.to_string_lossy().to_string()));
         }
 
         if !rules.is_empty() {

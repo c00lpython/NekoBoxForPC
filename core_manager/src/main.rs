@@ -478,8 +478,83 @@ fn parse_bool_flag(s: &str, default: bool) -> bool {
     }
 }
 
+/// Диагностика доступности Clash API и веб-панели metacubexd.
+///
+/// Проверяет:
+/// 1. Доступен ли endpoint /version (Clash API активен)
+/// 2. Доступен ли endpoint /ui (metacubexd загружен)
+///
+/// Выводит подсказки с возможными решениями при ошибках.
+async fn diagnose_clash_api() {
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    // Проверка Clash API /version
+    match client.get("http://127.0.0.1:9090/version").send().await {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(body) = resp.text().await {
+                if let Ok(ver) = serde_json::from_str::<serde_json::Value>(&body) {
+                    if let Some(version) = ver.get("version").and_then(|v| v.as_str()) {
+                        println!("    - Clash API: \x1b[32mактивен\x1b[0m (sing-box {})", version);
+                    }
+                }
+            }
+        }
+        Ok(resp) => {
+            eprintln!("\x1b[1;33m[ДИАГНОСТИКА] Clash API ответил с кодом {}\x1b[0m", resp.status());
+            if resp.status().as_u16() == 401 {
+                eprintln!("  Подсказка: проверьте параметр 'secret' в конфигурации clash_api.");
+            }
+        }
+        Err(_) => {
+            eprintln!("\x1b[1;33m[ДИАГНОСТИКА] Clash API (127.0.0.1:9090) недоступен.\x1b[0m");
+            eprintln!("  Возможные причины:");
+            eprintln!("  - Ядро sing-box скомпилировано без тега 'with_clash_api'");
+            eprintln!("  - Порт 9090 занят другим процессом");
+            eprintln!("  - В конфигурации отсутствует секция experimental.clash_api");
+        }
+    }
+
+    // Проверка metacubexd UI
+    match client.get("http://127.0.0.1:9090/ui/").send().await {
+        Ok(resp) if resp.status().is_success() => {
+            println!("    - Веб-панель metacubexd: \x1b[32mдоступна\x1b[0m (http://127.0.0.1:9090/ui)");
+        }
+        Ok(resp) if resp.status().as_u16() == 404 => {
+            eprintln!("\x1b[1;33m[ДИАГНОСТИКА] Веб-панель metacubexd НЕ загружена (404).\x1b[0m");
+            eprintln!("  Возможные причины:");
+            eprintln!("  - Папка 'metacubexd' не найдена рядом с ядром sing-box");
+            eprintln!("  - Параметр 'external_ui' указывает на несуществующий путь");
+            eprintln!("  Решение: убедитесь, что папка metacubexd/ находится рядом с бинарником,");
+            eprintln!("  или добавьте 'external_ui_download_url' в конфигурацию для автозагрузки.");
+        }
+        _ => {
+            // Если Clash API уже не отвечает, не дублируем ошибку
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Информирование об архитектуре x86 (32-bit)
+    if CoreSupervisor::is_x86_arch() {
+        eprintln!("\x1b[1;33m[ИНФО] Запущена сборка для архитектуры x86 (32-bit).\x1b[0m");
+        eprintln!("Режим совместимости с 32-битными системами (Windows 7 x86 / legacy).");
+        eprintln!("Для запуска прокси-сессии убедитесь, что в каталоге программы размещен совместимый бинарник singbox.exe.\n");
+    }
+
+    // Информирование о режиме Windows 7 legacy
+    if CoreSupervisor::is_windows_7() {
+        eprintln!("\x1b[1;33m[ПРЕДУПРЕЖДЕНИЕ] Обнаружена Windows 7 (legacy mode).\x1b[0m");
+        eprintln!("Полноценная поддержка sing-box на Windows 7 ограничена из-за требований Go runtime.");
+        eprintln!("Будет использован legacy-бинарник из singbox/Windows7/ (если доступен).\n");
+    }
+
     let raw_args: Vec<String> = std::env::args().collect();
     let normalized = normalize_cli_args(raw_args);
     let cli = Cli::parse_from(normalized);
@@ -946,7 +1021,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("    - Локальный прокси (Mixed SOCKS5/HTTP): 127.0.0.1:20808");
                 println!("    - Панель управления Clash API: http://127.0.0.1:9090/ui");
                 println!("    - Быстрый тест в PowerShell: curl.exe -x 127.0.0.1:20808 https://api.ipify.org");
-                println!("    - Логи сессии сохраняются в папку: logs/ (latest.log)");
+                println!("    - Логи сессии сохраняются в папку: data/logs/ (latest.log)");
                 println!("    - Уровень детализации логирования: [{}]", log_level.to_uppercase());
             }
 
@@ -1001,6 +1076,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("==> Ядро запущено (ожидание подключений клиентов на 127.0.0.1:20808).");
                 }
             }
+
+            // Диагностика доступности Clash API и metacubexd
+            diagnose_clash_api().await;
 
             println!("==> Нажмите Ctrl+C для завершения работы...");
             tokio::signal::ctrl_c().await?;
@@ -1526,19 +1604,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             errors,
             name,
         } => {
-            let log_path = if let Some(ref n) = name {
-                PathBuf::from("logs").join(n)
+            let data_logs_dir = core_manager::get_data_dir().join("logs");
+            let legacy_logs_dir = PathBuf::from("logs");
+            let effective_logs_dir = if data_logs_dir.exists() {
+                data_logs_dir
+            } else if legacy_logs_dir.exists() {
+                legacy_logs_dir
             } else {
-                PathBuf::from("logs").join("latest.log")
+                data_logs_dir
+            };
+
+            let log_path = if let Some(ref n) = name {
+                effective_logs_dir.join(n)
+            } else {
+                effective_logs_dir.join("latest.log")
             };
 
             if clear {
-                if let Ok(entries) = std::fs::read_dir("logs") {
+                if let Ok(entries) = std::fs::read_dir(&effective_logs_dir) {
                     for entry in entries.flatten() {
                         let _ = std::fs::remove_file(entry.path());
                     }
                 }
-                println!("==> Каталог логов успешно очищен.");
+                println!("==> Каталог логов ({}) успешно очищен.", effective_logs_dir.display());
                 return Ok(());
             }
 

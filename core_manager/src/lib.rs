@@ -21,7 +21,7 @@ pub use models::*;
 pub use parser::{detect_config_format, parse_config, ParseResult};
 pub use selector::{ParsedSelector, SelectorToken};
 pub use storage::{
-    BackupData, BackupMeta, BackupRestoreReport, ConfigStore, ConfigStoreData, StoredGeoFile,
+    get_data_dir, BackupData, BackupMeta, BackupRestoreReport, ConfigStore, ConfigStoreData, StoredGeoFile,
     StoredGroup, StoredProfile, StoredRule,
 };
 pub use subscription::{FingerprintBuilder, RequestFingerprint, SubscriptionFetchResult, SubscriptionHandler, SubscriptionUserInfo};
